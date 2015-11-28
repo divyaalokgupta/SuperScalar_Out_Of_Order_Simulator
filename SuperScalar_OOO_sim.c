@@ -23,7 +23,8 @@ class Instruction **FE;
 string *line;
 
 int check_vacant_pointers (class Instruction **pointer, int size);
-void Fetch(string *line, int width);
+void Fetch(int width);
+void Decode(int width);
 
 // class RMT
 // private members
@@ -137,22 +138,46 @@ Instruction::Instruction()
     RT_duration_cycle = 0;
 }
 
-void Fetch(string *line, int width)
+void Fetch(int width)
 {
-    int vacant = check_vacant_pointers(DE,width);
-    cout<<vacant<<" DE pointers vacant\n";
-    if(vacant == width)
+    if(check_vacant_pointers(FE,width) == -1)
     {
-        for(int i=0; i<width;i++)
+        int vacant = check_vacant_pointers(DE,width);
+        cout<<vacant<<" DE pointers vacant\n";
+        if(vacant == width)
         {
-            DE[i] = FE[i];
-            FE[i] = NULL;
+            for(int i=0; i<width;i++)
+            {
+                DE[i] = FE[i];
+                FE[i] = NULL;
+            }
         }
-    }
 
-    cout<<"Fetched Following Instructions"<<endl;
-    for(int i=0;i<width;i++)
-        DE[i]->print();
+        cout<<"Fetched Following Instructions"<<endl;
+        for(int i=0;i<width;i++)
+            DE[i]->print();
+    }
+}
+
+void Decode(int width)
+{
+    if(check_vacant_pointers(DE,width) == -1)
+    {
+        int vacant = check_vacant_pointers(RN,width);
+        cout<<vacant<<" RN pointers vacant\n";
+        if(vacant == width)
+        {
+            for(int i=0; i<width;i++)
+            {
+                RN[i] = DE[i];
+                DE[i] = NULL;
+            }
+        }
+
+        cout<<"Decoded Following Instructions"<<endl;
+        for(int i=0;i<width;i++)
+            RN[i]->print();
+    }
 }
 
 int check_vacant_pointers (class Instruction **pointer, int size)
@@ -194,7 +219,6 @@ int main(int argc, char *argv[])
     RN = new Instruction*[width];
     DE = new Instruction*[width];
     FE = new Instruction*[width];
-    line = new string[width];
     
     for(int i=0;i<width;i++)
     {
@@ -232,7 +256,8 @@ int main(int argc, char *argv[])
         if(i%width == 0 || feof(pFile))
         {
             cout<<"Pipeline\n";
-            Fetch(line,width);
+            Decode(width);
+            Fetch(width);
         }
         
         if(feof(pFile))
