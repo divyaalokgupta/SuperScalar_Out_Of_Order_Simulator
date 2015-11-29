@@ -116,7 +116,7 @@ class Instruction
     void set_begin_RR(int time) {RR_begin_cycle=time;}
     void set_begin_RN(int time) {RN_begin_cycle=time;}
     void set_begin_DI(int time) {DI_begin_cycle=time;}
-    void set_begin_IS(int time) {IQ_begin_cycle=time;}
+    void set_begin_IQ(int time) {IQ_begin_cycle=time;}
     void set_begin_EX(int time) {EX_begin_cycle=time;}
     void set_begin_WB(int time) {WB_begin_cycle=time;}
     void set_begin_RT(int time) {RT_begin_cycle=time;}
@@ -143,7 +143,7 @@ class Instruction
 
 void Instruction::print()
 {
-    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IQ_begin_cycle<<","<<IQ_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
+    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IQ{"<<IQ_begin_cycle<<","<<IQ_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
 }
 
 Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
@@ -384,6 +384,7 @@ void Dispatch(int iq_size, int width, int time)
         cout<<vacant<<" IQ pointers vacant\n";
         if(vacant >= width)
         {
+            cout<<"Dispatched Following Instructions"<<endl;
             for(int i=0; i<width;i++)
             {
                 if(DI[i]->get_Renamed_Src1_Reg() != -1 && DI[i]->get_Renamed_Src1_Reg_Ready() == 1)
@@ -401,8 +402,9 @@ void Dispatch(int iq_size, int width, int time)
                     {
                         found_spot = 1;
                         IQ[j] = DI[i];
-                        IQ[j]->set_begin_DI(time);
+                        IQ[j]->set_begin_IQ(time);
                         IQ[j]->set_valid(0);
+                        IQ[j]->print();
                         DI[i] = NULL;
                         break;
                     }
@@ -410,60 +412,82 @@ void Dispatch(int iq_size, int width, int time)
                 if(found_spot == 0)
                 {
                      for(int j=0;j<iq_size;j++)
+                     {
                          if(IQ[j]->get_valid() == 1)
                          {
                              found_spot = 1;
                              IQ[j] = DI[i];
-                             IQ[j]->set_begin_DI(time);
+                             IQ[j]->set_begin_IQ(time);
                              IQ[j]->set_valid(0);
+                             IQ[j]->print();
                              DI[i] = NULL;
                              break;
                          }
+                     }
                 }
             }
 
-            cout<<"Dispatched Following Instructions"<<endl;
-            for(int i=0;i<width;i++)
-                IQ[i]->print();
         }
     }
 }
 
 void Issue(int iq_size,int width, int time)
 {
-    if(check_vacant_pointers(IQ,width) < width)
+    if(check_vacant_pointers(IQ,iq_size) < iq_size)
     {
         for(int i=0;i<iq_size;i++)
-            if(IQ[i]->get_valid() == 0)
-                IQ[i]->incr_IQ();
+            if(IQ[i] != NULL)
+                if(IQ[i]->get_valid() == 0)
+                    IQ[i]->incr_IQ();
 
-        int vacant = check_vacant_pointers(EX,width);
-        cout<<vacant<<" IQ pointers vacant\n";
-        if(vacant == width)
+        int vacant = check_vacant_pointers(EX,5*width);
+        cout<<vacant<<" EX pointers vacant\n";
+        if(vacant >= width)
         {
-            for(int i=0; i<iq_size;i++)
-            {
-                if(rob[IQ[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
-                    IQ[i]->set_Renamed_Src1_Reg_Ready(0);
-                
-                if(rob[IQ[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
-                    IQ[i]->set_Renamed_Src2_Reg_Ready(0);
-               
-                //Chuck up to width oldest instructions to EX whose both inputs are ready
-                EX[i] = IQ[i];
-                EX[i]->set_begin_EX(time);
-                switch(EX[i]->get_op_type())
-                {
-                    case 0: EX[i]->set_execute_latency(1); break;
-                    case 1: EX[i]->set_execute_latency(2); break;
-                    case 2: EX[i]->set_execute_latency(5); break;
-                    default: cout<<"Erroneous op_type "<<EX[i]->get_op_type()<<endl; exit(-1);
-                }
-                IQ[i] = NULL;
-            }
+            //Chuck up to width oldest instructions to EX whose both inputs are ready
             cout<<"Issued Following Instructions"<<endl;
-            for(int i=0;i<width;i++)
-                EX[i]->print();
+            for(int i=0; i<width;i++)
+            {
+                int k;
+                for(k=0;k<5*width;k++)
+                    if(EX[k] == NULL)
+                        break;
+
+                if(k == 5*width)
+                    break;
+
+                for(int j=0;j<iq_size;j++)
+                {
+                    if(IQ[i] != NULL)
+                    {
+                        if(IQ[i]->get_valid() == 0)
+                        {
+                            if(IQ[j]->get_Renamed_Src1_Reg() != -1 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 1)
+                                if(rob[IQ[j]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                                    IQ[j]->set_Renamed_Src1_Reg_Ready(0);
+                            
+                            if(IQ[j]->get_Renamed_Src2_Reg() != -1 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 1)
+                                if(rob[IQ[j]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                                    IQ[j]->set_Renamed_Src2_Reg_Ready(0);
+               
+                            if(IQ[j]->get_Renamed_Src1_Reg_Ready() == 0 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 0)
+                            {
+                                EX[k] = IQ[j];
+                                EX[k]->set_begin_EX(time);
+                                switch(EX[k]->get_op_type())
+                                {
+                                    case 0: EX[k]->set_execute_latency(1); break;
+                                    case 1: EX[k]->set_execute_latency(2); break;
+                                    case 2: EX[k]->set_execute_latency(5); break;
+                                    default: cout<<"Erroneous op_type "<<EX[k]->get_op_type()<<endl; exit(-1);
+                                }
+                                EX[k]->print();
+                                IQ[i]->set_valid(1);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -523,6 +547,9 @@ int main(int argc, char *argv[])
         FE[i] = NULL; 
     }
     
+    for(int i=0;i<iq_size;i++)
+        IQ[i] = NULL;
+    
     for(int i=0;i<5*width;i++)
     {
         EX[i] = NULL;
@@ -555,6 +582,7 @@ int main(int argc, char *argv[])
         if(i%width == 0 || feof(pFile))
         {
             j++;
+            Issue(iq_size,width,j);
             Dispatch(iq_size,width,j);
             Regread(width,j);
             Rename(rob_size,width,j);
@@ -592,15 +620,3 @@ int main(int argc, char *argv[])
 //          Since values of Regs are available through bypasses, set ready flags for instructions in RR, DI and IQ
 //      end
 //      
-// Issue
-//      Transfer up to Width instructions from IQ to *EX based on chronological history and that both Src Regs ready flags are 1
-//      set execution latency for each instruction based on op_type
-//      op_type 0 : 1
-//      op_type 1 : 2
-//      op_type 2 : 5
-//      set *IQ to NULL
-//      check if src Regs 1,2's ROB entry is ready
-//      if ready then
-//          set renamed src Regs ready flag to 1..(by default 0)
-//      end
-//
