@@ -6,7 +6,12 @@
 #include<cstdio>
 #include<cstdlib>
 
+//1 NOT READY INVALID
+//0 READY VALID
+
 using namespace std;
+
+
 
 class Instruction **Inst;
 class Instruction **RT; 
@@ -41,7 +46,7 @@ class RMT
 
 RMT::RMT()
 {
-    valid = -1;
+    valid = 0;
     ROB_entry = -1;
 }
 
@@ -63,6 +68,7 @@ class ROB
     ROB(int i);
     ROB(long PC, int Dest_Reg, int Ready);
     long get_PC() { return PC; }
+    long get_Ready() { return Ready; }
     int get_ROB_entry() { return ROB_entry; }
 };
 
@@ -70,7 +76,7 @@ ROB::ROB(int i)
 {
     PC = -1;
     Dest_Reg = -1;
-    Ready = -1;
+    Ready = 1;
     ROB_entry = i;
 }
 
@@ -123,6 +129,13 @@ class Instruction
     void set_Renamed_Src1_Reg(int reg) { this->Renamed_Src1_Reg = reg; }
     void set_Renamed_Src2_Reg(int reg) { this->Renamed_Src2_Reg = reg; }
     void set_Renamed_Dest_Reg(int reg) { this->Renamed_Dest_Reg = reg; }
+    void set_Renamed_Src1_Reg_Ready(int reg) { this->Renamed_Src1_Reg_Ready = reg; }
+    void set_Renamed_Src2_Reg_Ready(int reg) { this->Renamed_Src2_Reg_Ready = reg; }
+    int get_Renamed_Src1_Reg() { return Renamed_Src1_Reg; }
+    int get_Renamed_Src2_Reg() { return Renamed_Src2_Reg; }
+    int get_Renamed_Dest_Reg() { return Renamed_Dest_Reg; }
+    int get_Renamed_Src1_Reg_Ready() { return Renamed_Src1_Reg_Ready; }
+    int get_Renamed_Src2_Reg_Ready() { return Renamed_Src2_Reg_Ready; }
 };
 
 void Instruction::print()
@@ -138,11 +151,11 @@ Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2
     this->Dest_Reg = DR;
     this->Src1_Reg = SR1;
     this->Src2_Reg = SR2;
-    Renamed_Dest_Reg = 0;
-    Renamed_Src1_Reg = 0;
-    Renamed_Src2_Reg = 0;
-    Renamed_Src1_Reg_Ready = 0;
-    Renamed_Src2_Reg_Ready = 0;
+    Renamed_Dest_Reg = -1;
+    Renamed_Src1_Reg = -1;
+    Renamed_Src2_Reg = -1;
+    Renamed_Src1_Reg_Ready = 1;
+    Renamed_Src2_Reg_Ready = 1;
     valid = -1;
     execution_latency = 0;
     this->FE_begin_cycle = FE_begin_cycle;
@@ -167,16 +180,16 @@ Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2
 
 Instruction::Instruction()
 {
-    PC = 0;
-    OpType = 0;
-    Dest_Reg = 0;
-    Src1_Reg = 0;
-    Src2_Reg = 0;
-    Renamed_Dest_Reg = 0;
-    Renamed_Src1_Reg = 0;
-    Renamed_Src2_Reg = 0;
-    Renamed_Src1_Reg_Ready = 0;
-    Renamed_Src2_Reg_Ready = 0;
+    PC = -1;
+    OpType = -1;
+    Dest_Reg = -1;
+    Src1_Reg = -1;
+    Src2_Reg = -1;
+    Renamed_Dest_Reg = -1;
+    Renamed_Src1_Reg = -1;
+    Renamed_Src2_Reg = -1;
+    Renamed_Src1_Reg_Ready = 1;
+    Renamed_Src2_Reg_Ready = 1;
     valid = -1;
     execution_latency = 0;
     FE_begin_cycle = 0;
@@ -273,28 +286,38 @@ void Rename(int rob_size, int width, int time)
             for(int i=0; i<width;i++)
             {
                 //use RMT to figure if ARF value is available or ROB is needed
-                for(int j=0;j<67;j++)
+                int Src1_Reg = RN[i]->get_Src1_Reg();
+                if(Src1_Reg != -1)
                 {
-                    int Src1_Reg = RN[i]->get_Src1_Reg();
-                    if(Src1_Reg != -1)
-                        if(rmt[Src1_Reg]->get_valid() == 1)
-                            RN[i]->set_Renamed_Src1_Reg(rmt[Src1_Reg]->get_ROB_entry());
-                    
-                    int Src2_Reg = RN[i]->get_Src2_Reg();
-                    if(Src2_Reg != -1)
-                        if(rmt[Src2_Reg]->get_valid() == 1)
-                            RN[i]->set_Renamed_Src2_Reg(rmt[Src2_Reg]->get_ROB_entry());
+                    if(rmt[Src1_Reg]->get_valid() == 1)
+                        RN[i]->set_Renamed_Src1_Reg(rmt[Src1_Reg]->get_ROB_entry());
+                    else
+                        RN[i]->set_Renamed_Src1_Reg_Ready(0);
+                }
+                
+                int Src2_Reg = RN[i]->get_Src2_Reg();
+                if(Src2_Reg != -1)
+                {
+                    if(rmt[Src2_Reg]->get_valid() == 1)
+                        RN[i]->set_Renamed_Src2_Reg(rmt[Src2_Reg]->get_ROB_entry());
+                    else
+                        RN[i]->set_Renamed_Src2_Reg_Ready(0);
                 }
                 
                 //map new ROB and RMT entry for destination register
                 if(RN[i]->get_Dest_Reg() != -1)
                 {
                     int Dest_Reg = RN[i]->get_Dest_Reg();
-                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 0);
-                    RN[i]->set_Renamed_Dest_Reg(rmt[Dest_Reg]->get_ROB_entry());
+                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 1);
                     rmt[Dest_Reg] = new RMT(1,tail->get_ROB_entry());
+                    RN[i]->set_Renamed_Dest_Reg(rmt[Dest_Reg]->get_ROB_entry());
                 }
-                
+                else //Add conditions when there is no Dest Reg.
+                {
+                    tail = new ROB(RN[i]->get_PC(),-1,1);
+                    RN[i]->set_Renamed_Dest_Reg(-1);
+                }
+                                
                 if(tail->get_ROB_entry() == 66)
                     tail = rob[0];
                 else
@@ -311,18 +334,6 @@ void Rename(int rob_size, int width, int time)
     }
 }
 
-// Regread
-//      check empty *DI pointers and if *RR is not NULL
-//      if empty then
-//          check if src Regs 1,2's ROB entry is ready
-//          if ready then
-//              set renamed src Regs ready flag to 1..(by default 0)
-//          end
-//          Transfer *RR to *DI
-//          set *RR to NULL
-//      end
-//
-
 void Regread(int rob_size, int width, int time)
 {
     if(check_vacant_pointers(RR,width) < width)
@@ -336,6 +347,14 @@ void Regread(int rob_size, int width, int time)
         {
             for(int i=0; i<width;i++)
             {
+                if(RR[i]->get_Renamed_Src1_Reg_Ready() == 1 && RR[i]->get_Renamed_Src1_Reg() != -1)
+                    if(rob[RR[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                        RR[i]->set_Renamed_Src1_Reg_Ready(0);
+                
+                if(RR[i]->get_Renamed_Src2_Reg_Ready() == 1 && RR[i]->get_Renamed_Src2_Reg() != -1)
+                    if(rob[RR[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                        RR[i]->set_Renamed_Src2_Reg_Ready(0);
+
                 DI[i] = RR[i];
                 DI[i]->set_begin_DI(time);
                 RR[i] = NULL;
