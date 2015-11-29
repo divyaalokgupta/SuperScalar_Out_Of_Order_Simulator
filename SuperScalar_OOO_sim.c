@@ -23,8 +23,8 @@ class Instruction **FE;
 string *line;
 
 int check_vacant_pointers (class Instruction **pointer, int size);
-void Fetch(int width);
-void Decode(int width);
+void Fetch(int width, int time);
+void Decode(int width, int time);
 
 // class RMT
 // private members
@@ -53,55 +53,71 @@ class Instruction
 {
     private:
     unsigned long PC;
-    int OpType, Dest_Reg, Src1_Reg, Src2_Reg, Renamed_Dest_Reg, Renamed_Src1_Reg, Renamed_Src2_Reg, Renamed_Src1_Reg_Ready, Renamed_Src2_Reg_Ready, valid, execution_latency, FE_begin_cycle, FE_duration_cycle, DE_begin_cycle, DE_duration_cycle, RN_begin_cycle, RN_duration_cycle, RR_begin_cycle, RR_duration_cycle, DI_begin_cycle, DI_duration_cycle, IS_begin_cycle, IS_duration_cycle, EX_begin_cycle, EX_duration_cycle, WB_begin_cycle, WB_duration_cycle, RT_begin_cycle, RT_duration_cycle;
+    int seq, OpType, Dest_Reg, Src1_Reg, Src2_Reg, Renamed_Dest_Reg, Renamed_Src1_Reg, Renamed_Src2_Reg, Renamed_Src1_Reg_Ready, Renamed_Src2_Reg_Ready, valid, execution_latency, FE_begin_cycle, FE_duration_cycle, DE_begin_cycle, DE_duration_cycle, RN_begin_cycle, RN_duration_cycle, RR_begin_cycle, RR_duration_cycle, DI_begin_cycle, DI_duration_cycle, IS_begin_cycle, IS_duration_cycle, EX_begin_cycle, EX_duration_cycle, WB_begin_cycle, WB_duration_cycle, RT_begin_cycle, RT_duration_cycle;
 
     public:
     Instruction();
-    Instruction(unsigned long PC, int op_type, int DR, int SR1, int SR2);
+    Instruction(int seq, unsigned long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle);
     void print();
+    void incr_FE() {FE_duration_cycle++;}
+    void incr_DE() {DE_duration_cycle++;}
+    void incr_RR() {RR_duration_cycle++;}
+    void incr_RN() {RN_duration_cycle++;}
+    void incr_DI() {DI_duration_cycle++;}
+    void incr_IS() {IS_duration_cycle++;}
+    void incr_EX() {EX_duration_cycle++;}
+    void incr_WB() {WB_duration_cycle++;}
+    void incr_RT() {RT_duration_cycle++;}
+    
+    void set_begin_FE(int time) {FE_begin_cycle=time;}
+    void set_begin_DE(int time) {DE_begin_cycle=time;}
+    void set_begin_RR(int time) {RR_begin_cycle=time;}
+    void set_begin_RN(int time) {RN_begin_cycle=time;}
+    void set_begin_DI(int time) {DI_begin_cycle=time;}
+    void set_begin_IS(int time) {IS_begin_cycle=time;}
+    void set_begin_EX(int time) {EX_begin_cycle=time;}
+    void set_begin_WB(int time) {WB_begin_cycle=time;}
+    void set_begin_RT(int time) {RT_begin_cycle=time;}
 };
 
 void Instruction::print()
 {
-    cout<<PC<<endl;
-    cout<<OpType<<endl;
-    cout<<Dest_Reg<<endl;
-    cout<<Src1_Reg<<endl;
-    cout<<Src2_Reg<<endl;
-//    cout<<Renamed_Dest_Reg<<endl;
-//    cout<<Renamed_Src1_Reg<<endl;
-//    cout<<Renamed_Src2_Reg<<endl;
-//    cout<<Renamed_Src1_Reg_Ready<<endl;
-//    cout<<Renamed_Src2_Reg_Ready<<endl;
-//    cout<<valid<<endl;
-//    cout<<execution_latency<<endl;
-//    cout<<FE_begin_cycle<<endl;
-//    cout<<FE_duration_cycle<<endl;
-//    cout<<DE_begin_cycle<<endl;
-//    cout<<DE_duration_cycle<<endl;
-//    cout<<RN_begin_cycle<<endl;
-//    cout<<RN_duration_cycle<<endl;
-//    cout<<RR_begin_cycle<<endl;
-//    cout<<RR_duration_cycle<<endl;
-//    cout<<DI_begin_cycle<<endl;
-//    cout<<DI_duration_cycle<<endl;
-//    cout<<IS_begin_cycle<<endl;
-//    cout<<IS_duration_cycle<<endl;
-//    cout<<EX_begin_cycle<<endl;
-//    cout<<EX_duration_cycle<<endl;
-//    cout<<WB_begin_cycle<<endl;
-//    cout<<WB_duration_cycle<<endl;
-//    cout<<RT_begin_cycle<<endl;
-//    cout<<RT_duration_cycle<<endl;
+    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IS_begin_cycle<<","<<IS_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
 }
 
-Instruction::Instruction(unsigned long PC, int op_type, int DR, int SR1, int SR2)
+Instruction::Instruction(int seq, unsigned long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
 {
+    this->seq = seq;
     this->PC = PC;
     this->OpType = op_type;
     this->Dest_Reg = DR;
     this->Src1_Reg = SR1;
     this->Src2_Reg = SR2;
+    Renamed_Dest_Reg = 0;
+    Renamed_Src1_Reg = 0;
+    Renamed_Src2_Reg = 0;
+    Renamed_Src1_Reg_Ready = 0;
+    Renamed_Src2_Reg_Ready = 0;
+    valid = -1;
+    execution_latency = 0;
+    this->FE_begin_cycle = FE_begin_cycle;
+    FE_duration_cycle = 0;
+    DE_begin_cycle = 0;
+    DE_duration_cycle = 0;
+    RN_begin_cycle = 0;
+    RN_duration_cycle = 0;
+    RR_begin_cycle = 0;
+    RR_duration_cycle = 0;
+    DI_begin_cycle = 0;
+    DI_duration_cycle = 0;
+    IS_begin_cycle = 0;
+    IS_duration_cycle = 0;
+    EX_begin_cycle = 0;
+    EX_duration_cycle = 0;
+    WB_begin_cycle = 0;
+    WB_duration_cycle = 0;
+    RT_begin_cycle = 0;
+    RT_duration_cycle = 0;
 }
 
 Instruction::Instruction()
@@ -138,10 +154,12 @@ Instruction::Instruction()
     RT_duration_cycle = 0;
 }
 
-void Fetch(int width)
+void Fetch(int width, int time)
 {
     if(check_vacant_pointers(FE,width) == -1)
     {
+        for(int i=0;i<width;i++)
+            FE[i]->incr_FE();
         int vacant = check_vacant_pointers(DE,width);
         cout<<vacant<<" DE pointers vacant\n";
         if(vacant == width)
@@ -149,6 +167,7 @@ void Fetch(int width)
             for(int i=0; i<width;i++)
             {
                 DE[i] = FE[i];
+                DE[i]->set_begin_DE(time);
                 FE[i] = NULL;
             }
         }
@@ -159,10 +178,13 @@ void Fetch(int width)
     }
 }
 
-void Decode(int width)
+void Decode(int width, int time)
 {
     if(check_vacant_pointers(DE,width) == -1)
     {
+        for(int i=0;i<width;i++)
+            DE[i]->incr_DE();
+
         int vacant = check_vacant_pointers(RN,width);
         cout<<vacant<<" RN pointers vacant\n";
         if(vacant == width)
@@ -235,8 +257,8 @@ int main(int argc, char *argv[])
     
     for(int i=0;i<5*width;i++)
     {
-        EX[i] = NULL; 
-        WB[i] = NULL; 
+        EX[i] = NULL;
+        WB[i] = NULL;
     }
 
     //Read Trace
@@ -250,14 +272,15 @@ int main(int argc, char *argv[])
         int op_type,DR,SR1,SR2;
         fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
         cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
-        FE[i%width] = new Instruction(PC,op_type,DR,SR1,SR2);
+        FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
         i++;
 
         if(i%width == 0 || feof(pFile))
         {
+            j++;
             cout<<"Pipeline\n";
-            Decode(width);
-            Fetch(width);
+            Decode(width,j);
+            Fetch(width,j);
         }
         
         if(feof(pFile))
@@ -267,10 +290,8 @@ int main(int argc, char *argv[])
     //Trace Completed...Finish the existing instructions
     while(1)
     {
-        j++;
         cout<<"Pipeline\n";
-        if (j == 5 )
-            break;
+        break;
     }
     return 0;
 }
