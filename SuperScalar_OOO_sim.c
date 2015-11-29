@@ -30,6 +30,9 @@ void Fetch(int width, int time);
 void Decode(int width, int time);
 void Rename(int rob_size, int width, int time);
 void Regread(int width, int time);
+void Dispatch(int iq_size, int width, int time);
+void Issue(int iq_size,int width, int time);
+void Execute(int iq_size, int width, int time);
 
 class RMT
 {
@@ -133,6 +136,8 @@ class Instruction
     void set_Renamed_Src2_Reg_Ready(int reg) { this->Renamed_Src2_Reg_Ready = reg; }
     void set_valid(int reg) { this->valid = reg; }
     void set_execute_latency(int reg) { this->execution_latency = reg; }
+    int get_execute_latency() { return execution_latency; }
+    int get_EX_duration_cycle() { return EX_duration_cycle; }
     int get_op_type() { return OpType; }
     int get_Renamed_Src1_Reg() { return Renamed_Src1_Reg; }
     int get_Renamed_Src2_Reg() { return Renamed_Src2_Reg; }
@@ -458,9 +463,9 @@ void Issue(int iq_size,int width, int time)
 
                 for(int j=0;j<iq_size;j++)
                 {
-                    if(IQ[i] != NULL)
+                    if(IQ[j] != NULL)
                     {
-                        if(IQ[i]->get_valid() == 0)
+                        if(IQ[j]->get_valid() == 0)
                         {
                             if(IQ[j]->get_Renamed_Src1_Reg() != -1 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 1)
                                 if(rob[IQ[j]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
@@ -482,9 +487,88 @@ void Issue(int iq_size,int width, int time)
                                     default: cout<<"Erroneous op_type "<<EX[k]->get_op_type()<<endl; exit(-1);
                                 }
                                 EX[k]->print();
-                                IQ[i]->set_valid(1);
+                                IQ[j]->set_valid(1);
+                                break;
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Execute(int iq_size, int width, int time)
+{
+    if(check_vacant_pointers(EX,5*width) < 5*width)
+    {
+        for(int i=0;i<5*width;i++)
+            if(EX[i] != NULL)
+                EX[i]->incr_EX();
+
+        int vacant = check_vacant_pointers(WB,5*width);
+        cout<<vacant<<" WB pointers vacant\n";
+        if(vacant >= width)
+        {
+            cout<<"Executed Following Instructions"<<endl;
+            for(int i=0; i<5*width;i++)
+            {
+                if(EX[i] != NULL)
+                {
+                    if(EX[i]->get_EX_duration_cycle() == EX[i]->get_execute_latency())
+                    {
+                        //Find Empty WB slot
+                        int k;
+                        for(k=0;k<5*width;k++)
+                            if(WB[k] == NULL)
+                                break;
+                        
+                        if(k == 5*width)
+                            break;
+                        //Wakeup source operands in RR, DI and IQ through bypasses
+                        for(int j=0;j<width;j++)
+                        {
+                            if(RR[j] != NULL)
+                            {
+                                if(RR[j]->get_Renamed_Src1_Reg_Ready() == 1 && RR[j]->get_Renamed_Src1_Reg() != -1)
+                                    if(RR[j]->get_Renamed_Src1_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        RR[j]->set_Renamed_Src1_Reg_Ready(0);
+                                
+                                if(RR[j]->get_Renamed_Src2_Reg_Ready() == 1 && RR[j]->get_Renamed_Src2_Reg() != -1)
+                                    if(RR[j]->get_Renamed_Src2_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        RR[j]->set_Renamed_Src2_Reg_Ready(0);
+                            }
+                            
+                            if(DI[j] != NULL)
+                            {
+                                if(DI[j]->get_Renamed_Src1_Reg_Ready() == 1 && DI[j]->get_Renamed_Src1_Reg() != -1)
+                                    if(DI[j]->get_Renamed_Src1_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        DI[j]->set_Renamed_Src1_Reg_Ready(0);
+                                
+                                if(DI[j]->get_Renamed_Src2_Reg_Ready() == 1 && DI[j]->get_Renamed_Src2_Reg() != -1)
+                                    if(DI[j]->get_Renamed_Src2_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        DI[j]->set_Renamed_Src2_Reg_Ready(0);
+                            }
+                        }
+                        
+                        for(int j=0;j<iq_size;j++)
+                        {
+                            if(IQ[j] != NULL)
+                            {
+                                if(IQ[j]->get_Renamed_Src1_Reg_Ready() == 1 && IQ[j]->get_Renamed_Src1_Reg() != -1)
+                                    if(IQ[j]->get_Renamed_Src1_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        IQ[j]->set_Renamed_Src1_Reg_Ready(0);
+                                
+                                if(IQ[j]->get_Renamed_Src2_Reg_Ready() == 1 && IQ[j]->get_Renamed_Src2_Reg() != -1)
+                                    if(IQ[j]->get_Renamed_Src2_Reg() == EX[i]->get_Renamed_Dest_Reg())
+                                        IQ[j]->set_Renamed_Src2_Reg_Ready(0);
+                            }
+                        }
+
+                        WB[k] = EX[i];
+                        WB[k]->set_begin_WB(time);
+                        WB[k]->print();
+                        EX[i] = NULL;
                     }
                 }
             }
@@ -582,6 +666,7 @@ int main(int argc, char *argv[])
         if(i%width == 0 || feof(pFile))
         {
             j++;
+            Execute(iq_size,width,j);
             Issue(iq_size,width,j);
             Dispatch(iq_size,width,j);
             Regread(width,j);
@@ -612,11 +697,3 @@ int main(int argc, char *argv[])
 //      Transfer  *WB  to *RT
 //      Mark *WB as NULL
 //
-// Execute
-//      Increment EX duration cycle
-//      if EX duration cycle == execution_latency then
-//          Transfer *EX to *WB
-//          Set *EX to NULL
-//          Since values of Regs are available through bypasses, set ready flags for instructions in RR, DI and IQ
-//      end
-//      
