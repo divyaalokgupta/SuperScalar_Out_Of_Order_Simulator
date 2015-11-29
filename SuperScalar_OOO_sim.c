@@ -11,8 +11,6 @@
 
 using namespace std;
 
-
-
 class Instruction **Inst;
 class Instruction **RT; 
 class Instruction **WB;
@@ -31,6 +29,7 @@ int check_vacant_pointers (class Instruction **pointer, int size);
 void Fetch(int width, int time);
 void Decode(int width, int time);
 void Rename(int rob_size, int width, int time);
+void Regread(int width, int time);
 
 class RMT
 {
@@ -96,7 +95,7 @@ class Instruction
 {
     private:
     long PC;
-    int seq, OpType, Dest_Reg, Src1_Reg, Src2_Reg, Renamed_Dest_Reg, Renamed_Src1_Reg, Renamed_Src2_Reg, Renamed_Src1_Reg_Ready, Renamed_Src2_Reg_Ready, valid, execution_latency, FE_begin_cycle, FE_duration_cycle, DE_begin_cycle, DE_duration_cycle, RN_begin_cycle, RN_duration_cycle, RR_begin_cycle, RR_duration_cycle, DI_begin_cycle, DI_duration_cycle, IS_begin_cycle, IS_duration_cycle, EX_begin_cycle, EX_duration_cycle, WB_begin_cycle, WB_duration_cycle, RT_begin_cycle, RT_duration_cycle;
+    int seq, OpType, Dest_Reg, Src1_Reg, Src2_Reg, Renamed_Dest_Reg, Renamed_Src1_Reg, Renamed_Src2_Reg, Renamed_Src1_Reg_Ready, Renamed_Src2_Reg_Ready, valid, execution_latency, FE_begin_cycle, FE_duration_cycle, DE_begin_cycle, DE_duration_cycle, RN_begin_cycle, RN_duration_cycle, RR_begin_cycle, RR_duration_cycle, DI_begin_cycle, DI_duration_cycle, IQ_begin_cycle, IQ_duration_cycle, EX_begin_cycle, EX_duration_cycle, WB_begin_cycle, WB_duration_cycle, RT_begin_cycle, RT_duration_cycle;
 
     public:
     Instruction();
@@ -107,7 +106,7 @@ class Instruction
     void incr_RR() {RR_duration_cycle++;}
     void incr_RN() {RN_duration_cycle++;}
     void incr_DI() {DI_duration_cycle++;}
-    void incr_IS() {IS_duration_cycle++;}
+    void incr_IQ() {IQ_duration_cycle++;}
     void incr_EX() {EX_duration_cycle++;}
     void incr_WB() {WB_duration_cycle++;}
     void incr_RT() {RT_duration_cycle++;}
@@ -117,7 +116,7 @@ class Instruction
     void set_begin_RR(int time) {RR_begin_cycle=time;}
     void set_begin_RN(int time) {RN_begin_cycle=time;}
     void set_begin_DI(int time) {DI_begin_cycle=time;}
-    void set_begin_IS(int time) {IS_begin_cycle=time;}
+    void set_begin_IS(int time) {IQ_begin_cycle=time;}
     void set_begin_EX(int time) {EX_begin_cycle=time;}
     void set_begin_WB(int time) {WB_begin_cycle=time;}
     void set_begin_RT(int time) {RT_begin_cycle=time;}
@@ -126,11 +125,15 @@ class Instruction
     int get_Dest_Reg() { return Dest_Reg; }
     int get_Src1_Reg() { return Src1_Reg; }
     int get_Src2_Reg() { return Src2_Reg; }
+    int get_valid() { return valid; }
     void set_Renamed_Src1_Reg(int reg) { this->Renamed_Src1_Reg = reg; }
     void set_Renamed_Src2_Reg(int reg) { this->Renamed_Src2_Reg = reg; }
     void set_Renamed_Dest_Reg(int reg) { this->Renamed_Dest_Reg = reg; }
     void set_Renamed_Src1_Reg_Ready(int reg) { this->Renamed_Src1_Reg_Ready = reg; }
     void set_Renamed_Src2_Reg_Ready(int reg) { this->Renamed_Src2_Reg_Ready = reg; }
+    void set_valid(int reg) { this->valid = reg; }
+    void set_execute_latency(int reg) { this->execution_latency = reg; }
+    int get_op_type() { return OpType; }
     int get_Renamed_Src1_Reg() { return Renamed_Src1_Reg; }
     int get_Renamed_Src2_Reg() { return Renamed_Src2_Reg; }
     int get_Renamed_Dest_Reg() { return Renamed_Dest_Reg; }
@@ -140,7 +143,7 @@ class Instruction
 
 void Instruction::print()
 {
-    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IS_begin_cycle<<","<<IS_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
+    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IQ_begin_cycle<<","<<IQ_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
 }
 
 Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
@@ -168,8 +171,8 @@ Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2
     RR_duration_cycle = 0;
     DI_begin_cycle = 0;
     DI_duration_cycle = 0;
-    IS_begin_cycle = 0;
-    IS_duration_cycle = 0;
+    IQ_begin_cycle = 0;
+    IQ_duration_cycle = 0;
     EX_begin_cycle = 0;
     EX_duration_cycle = 0;
     WB_begin_cycle = 0;
@@ -202,8 +205,8 @@ Instruction::Instruction()
     RR_duration_cycle = 0;
     DI_begin_cycle = 0;
     DI_duration_cycle = 0;
-    IS_begin_cycle = 0;
-    IS_duration_cycle = 0;
+    IQ_begin_cycle = 0;
+    IQ_duration_cycle = 0;
     EX_begin_cycle = 0;
     EX_duration_cycle = 0;
     WB_begin_cycle = 0;
@@ -294,6 +297,8 @@ void Rename(int rob_size, int width, int time)
                     else
                         RN[i]->set_Renamed_Src1_Reg_Ready(0);
                 }
+                else
+                        RN[i]->set_Renamed_Src1_Reg_Ready(0);
                 
                 int Src2_Reg = RN[i]->get_Src2_Reg();
                 if(Src2_Reg != -1)
@@ -303,6 +308,8 @@ void Rename(int rob_size, int width, int time)
                     else
                         RN[i]->set_Renamed_Src2_Reg_Ready(0);
                 }
+                else
+                        RN[i]->set_Renamed_Src2_Reg_Ready(0);
                 
                 //map new ROB and RMT entry for destination register
                 if(RN[i]->get_Dest_Reg() != -1)
@@ -334,7 +341,7 @@ void Rename(int rob_size, int width, int time)
     }
 }
 
-void Regread(int rob_size, int width, int time)
+void Regread(int width, int time)
 {
     if(check_vacant_pointers(RR,width) < width)
     {
@@ -362,6 +369,101 @@ void Regread(int rob_size, int width, int time)
             cout<<"Register Read Following Instructions"<<endl;
             for(int i=0;i<width;i++)
                 DI[i]->print();
+        }
+    }
+}
+
+void Dispatch(int iq_size, int width, int time)
+{
+    if(check_vacant_pointers(DI,width) < width)
+    {
+        for(int i=0;i<width;i++)
+            DI[i]->incr_DI();
+
+        int vacant = check_vacant_pointers(IQ,iq_size);
+        cout<<vacant<<" IQ pointers vacant\n";
+        if(vacant >= width)
+        {
+            for(int i=0; i<width;i++)
+            {
+                if(DI[i]->get_Renamed_Src1_Reg() != -1 && DI[i]->get_Renamed_Src1_Reg_Ready() == 1)
+                    if(rob[DI[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                        DI[i]->set_Renamed_Src1_Reg_Ready(0);
+                
+                if(DI[i]->get_Renamed_Src2_Reg() != -1 && DI[i]->get_Renamed_Src2_Reg_Ready() == 1)
+                    if(rob[DI[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                        DI[i]->set_Renamed_Src2_Reg_Ready(0);
+
+                int found_spot = 0;
+                //Find empty IQ index
+                for(int j=0;j<iq_size;j++)
+                    if(IQ[j] == NULL)
+                    {
+                        found_spot = 1;
+                        IQ[j] = DI[i];
+                        IQ[j]->set_begin_DI(time);
+                        IQ[j]->set_valid(0);
+                        DI[i] = NULL;
+                        break;
+                    }
+
+                if(found_spot == 0)
+                {
+                     for(int j=0;j<iq_size;j++)
+                         if(IQ[j]->get_valid() == 1)
+                         {
+                             found_spot = 1;
+                             IQ[j] = DI[i];
+                             IQ[j]->set_begin_DI(time);
+                             IQ[j]->set_valid(0);
+                             DI[i] = NULL;
+                             break;
+                         }
+                }
+            }
+
+            cout<<"Dispatched Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                IQ[i]->print();
+        }
+    }
+}
+
+void Issue(int iq_size,int width, int time)
+{
+    if(check_vacant_pointers(IQ,width) < width)
+    {
+        for(int i=0;i<iq_size;i++)
+            if(IQ[i]->get_valid() == 0)
+                IQ[i]->incr_IQ();
+
+        int vacant = check_vacant_pointers(EX,width);
+        cout<<vacant<<" IQ pointers vacant\n";
+        if(vacant == width)
+        {
+            for(int i=0; i<iq_size;i++)
+            {
+                if(rob[IQ[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                    IQ[i]->set_Renamed_Src1_Reg_Ready(0);
+                
+                if(rob[IQ[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                    IQ[i]->set_Renamed_Src2_Reg_Ready(0);
+               
+                //Chuck up to width oldest instructions to EX whose both inputs are ready
+                EX[i] = IQ[i];
+                EX[i]->set_begin_EX(time);
+                switch(EX[i]->get_op_type())
+                {
+                    case 0: EX[i]->set_execute_latency(1); break;
+                    case 1: EX[i]->set_execute_latency(2); break;
+                    case 2: EX[i]->set_execute_latency(5); break;
+                    default: cout<<"Erroneous op_type "<<EX[i]->get_op_type()<<endl; exit(-1);
+                }
+                IQ[i] = NULL;
+            }
+            cout<<"Issued Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                EX[i]->print();
         }
     }
 }
@@ -453,7 +555,8 @@ int main(int argc, char *argv[])
         if(i%width == 0 || feof(pFile))
         {
             j++;
-            Regread(rob_size,width,j);
+            Dispatch(iq_size,width,j);
+            Regread(width,j);
             Rename(rob_size,width,j);
             Decode(width,j);
             Fetch(width,j);
@@ -499,19 +602,5 @@ int main(int argc, char *argv[])
 //      check if src Regs 1,2's ROB entry is ready
 //      if ready then
 //          set renamed src Regs ready flag to 1..(by default 0)
-//      end
-//
-// Dispatch
-//      check if *DI is NULL
-//      if not NULL then
-//          check if src Regs 1,2's ROB entry is ready
-//          if ready then
-//              set renamed src Regs ready flag to 1..(by default 0)
-//          end
-//
-//          if number of free IQ entries >= size of dispatch bundle
-//              Allocate IssueQueue entry for each *DI
-//              set *DI to NULL
-//          end
 //      end
 //
