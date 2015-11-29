@@ -69,11 +69,12 @@ class ROB
 
     public:
     ROB(int i);
-    ROB(long PC, int Dest_Reg, int Ready);
+    ROB(long PC, int Dest_Reg, int Ready, int ROB_entry);
     long get_PC() { return PC; }
     long get_Ready() { return Ready; }
     void set_Ready(int ready) { this->Ready = ready; }
     int get_ROB_entry() { return ROB_entry; }
+    int get_Dest_Reg() { return Dest_Reg; }
 };
 
 ROB::ROB(int i)
@@ -84,11 +85,12 @@ ROB::ROB(int i)
     ROB_entry = i;
 }
 
-ROB::ROB(long PC, int Dest_Reg, int Ready)
+ROB::ROB(long PC, int Dest_Reg, int Ready, int ROB_entry)
 {
     this->PC = PC;
     this->Dest_Reg = Dest_Reg;
     this->Ready = Ready;
+    this->ROB_entry = ROB_entry;
 }
 
 class ROB *head, *tail;
@@ -126,6 +128,7 @@ class Instruction
     void set_begin_WB(int time) {WB_begin_cycle=time;}
     void set_begin_RT(int time) {RT_begin_cycle=time;}
     
+    long get_seq() { return seq; }
     long get_PC() { return PC; }
     int get_Dest_Reg() { return Dest_Reg; }
     int get_Src1_Reg() { return Src1_Reg; }
@@ -150,7 +153,7 @@ class Instruction
 
 void Instruction::print()
 {
-    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IQ{"<<IQ_begin_cycle<<","<<IQ_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
+    cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IQ_begin_cycle<<","<<IQ_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
 }
 
 Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
@@ -322,21 +325,23 @@ void Rename(int rob_size, int width, int time)
                 if(RN[i]->get_Dest_Reg() != -1)
                 {
                     int Dest_Reg = RN[i]->get_Dest_Reg();
-                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 1);
+                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 1,tail->get_ROB_entry());
                     rmt[Dest_Reg] = new RMT(1,tail->get_ROB_entry());
                     RN[i]->set_Renamed_Dest_Reg(rmt[Dest_Reg]->get_ROB_entry());
+                    cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<tail->get_ROB_entry()<<" Details: Dest Reg "<<tail->get_Dest_Reg()<<endl;
                 }
                 else //Add conditions when there is no Dest Reg.
                 {
-                    tail = new ROB(RN[i]->get_PC(),-1,1);
-                    RN[i]->set_Renamed_Dest_Reg(-1);
+                    tail = new ROB(RN[i]->get_PC(),-1,1,tail->get_ROB_entry());
+                    RN[i]->set_Renamed_Dest_Reg(tail->get_ROB_entry());
+                    cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<tail->get_ROB_entry()<<" Details: Dest Reg "<<tail->get_Dest_Reg()<<endl;
                 }
                                 
                 if(tail->get_ROB_entry() == 66)
                     tail = rob[0];
                 else
                     tail = rob[tail->get_ROB_entry() + 1];
-                
+                                    
                 RR[i] = RN[i];
                 RR[i]->set_begin_RR(time);
                 RN[i] = NULL;
@@ -627,26 +632,32 @@ void Retire(int width, int time)
 {
     if(check_vacant_pointers(RT,width) < width)
     {
-        for(int i=0;i<width;i++)
-            RT[i]->incr_RT();
+        for(int i=0;i<5*width;i++)
+            if(RT[i] != NULL)
+                RT[i]->incr_RT();
 
-        for(int i=0; i<5*width;i++)
+        cout<<"Retired Following Instructions"<<endl;
+        for(int i=0; i<width;i++)
         {
-            if(RR[i]->get_Renamed_Src1_Reg_Ready() == 1 && RR[i]->get_Renamed_Src1_Reg() != -1)
-                if(rob[RR[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
-                    RR[i]->set_Renamed_Src1_Reg_Ready(0);
-            
-            if(RR[i]->get_Renamed_Src2_Reg_Ready() == 1 && RR[i]->get_Renamed_Src2_Reg() != -1)
-                if(rob[RR[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
-                    RR[i]->set_Renamed_Src2_Reg_Ready(0);
-
-            DI[i] = RR[i];
-            DI[i]->set_begin_DI(time);
-            RR[i] = NULL;
+            for(int j=0;j<5*width;j++)
+            {
+                if(RT[j] != NULL)
+                {
+                    if(RT[j]->get_Renamed_Dest_Reg() == head->get_ROB_entry())
+                    {
+                        RT[j]->print();
+                        RT[j] = NULL;
+                        
+                        int rob_head = head->get_ROB_entry();
+                        rob_head++;
+                        if(rob_head == 67)
+                            rob_head = 0;
+                        head = rob[rob_head];
+                        cout<<"New Head: "<<rob_head<<" "<<head->get_Dest_Reg()<<endl;
+                    }
+                }
+            }
         }
-        cout<<"Register Read Following Instructions"<<endl;
-        for(int i=0;i<width;i++)
-            DI[i]->print();
     }
 }
 
@@ -679,7 +690,7 @@ int main(int argc, char *argv[])
 
     //Mem Allocation for class Instruction
     Inst = new Instruction*[width];
-    RT = new Instruction*[width];
+    RT = new Instruction*[5*width];
     WB = new Instruction*[5*width];
     EX = new Instruction*[5*width];
     IQ = new Instruction*[iq_size];
@@ -695,12 +706,12 @@ int main(int argc, char *argv[])
     for(int i=0;i<width;i++)
     {
         Inst[i] = new Instruction;
-        IS[i] = NULL; 
-        DI[i] = NULL; 
-        RR[i] = NULL; 
-        RN[i] = NULL; 
-        DE[i] = NULL; 
-        FE[i] = NULL; 
+        IS[i] = NULL;
+        DI[i] = NULL;
+        RR[i] = NULL;
+        RN[i] = NULL;
+        DE[i] = NULL;
+        FE[i] = NULL;
     }
     
     for(int i=0;i<iq_size;i++)
@@ -735,10 +746,11 @@ int main(int argc, char *argv[])
         cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
         FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
         i++;
-//At the end when traces are less than width...supply a new param left_over in place of width...do not change width
+        //At the end when traces are less than width...supply a new param left_over in place of width...do not change width
         if(i%width == 0 || feof(pFile))
         {
             j++;
+            Retire(width,j);
             Writeback(width,j);
             Execute(iq_size,width,j);
             Issue(iq_size,width,j);
@@ -760,14 +772,3 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
-
-// Retire
-//      From Head in ROB, retire upto width consecutive instructions from RT
-//      Set *RT to NULL
-//      Reset valid bit in RMT
-//
-// Writeback
-//      Set ready bit 1 in ROB for each instruction
-//      Transfer  *WB  to *RT
-//      Mark *WB as NULL
-//
