@@ -25,39 +25,76 @@ string *line;
 int check_vacant_pointers (class Instruction **pointer, int size);
 void Fetch(int width, int time);
 void Decode(int width, int time);
+void Rename(int rob_size, int width, int time);
 
-// class RMT
-// private members
-// valid
-// ROB entry
-//
-// public functions
-//
-//
-// class ROB
-// private members
-// PC
-// Dest Reg (-1  indicates empty ROB slot)
-// Ready
-// ROB entry
-//
+class RMT
+{
+    private:
+    int valid, ROB_entry;
+
+    public:
+    RMT();
+    RMT(int valid, int ROB_entry);
+    int get_valid() { return valid; }
+    int get_ROB_entry() { return ROB_entry; }
+};
+
+RMT::RMT()
+{
+    valid = -1;
+    ROB_entry = -1;
+}
+
+RMT::RMT(int valid, int ROB_entry)
+{
+    this->valid = valid;
+    this->ROB_entry = ROB_entry;
+}
+
+class RMT **rmt;
+
+class ROB
+{
+    private:
+    long PC;
+    int Dest_Reg, Ready, ROB_entry;
+
+    public:
+    ROB(int i);
+    ROB(long PC, int Dest_Reg, int Ready);
+    long get_PC() { return PC; }
+    int get_ROB_entry() { return ROB_entry; }
+};
+
+ROB::ROB(int i)
+{
+    PC = -1;
+    Dest_Reg = -1;
+    Ready = -1;
+    ROB_entry = i;
+}
+
+ROB::ROB(long PC, int Dest_Reg, int Ready)
+{
+    this->PC = PC;
+    this->Dest_Reg = Dest_Reg;
+    this->Ready = Ready;
+}
+
+class ROB *head, *tail;
+class ROB **rob;
 // Public Functions
-// check number of free ROB entries..if free return free spot else -1...basically check if tail points to an empty ROB slot like it shud usually do
 // rename src regs using RMT if valid bit is zero need not rename else associate a ROB entry using head, rename dest regs for an instruction by associating a new ROB entry and updating RMT
-//
-// Objects
-// head
-// tail
 
 class Instruction
 {
     private:
-    unsigned long PC;
+    long PC;
     int seq, OpType, Dest_Reg, Src1_Reg, Src2_Reg, Renamed_Dest_Reg, Renamed_Src1_Reg, Renamed_Src2_Reg, Renamed_Src1_Reg_Ready, Renamed_Src2_Reg_Ready, valid, execution_latency, FE_begin_cycle, FE_duration_cycle, DE_begin_cycle, DE_duration_cycle, RN_begin_cycle, RN_duration_cycle, RR_begin_cycle, RR_duration_cycle, DI_begin_cycle, DI_duration_cycle, IS_begin_cycle, IS_duration_cycle, EX_begin_cycle, EX_duration_cycle, WB_begin_cycle, WB_duration_cycle, RT_begin_cycle, RT_duration_cycle;
 
     public:
     Instruction();
-    Instruction(int seq, unsigned long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle);
+    Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle);
     void print();
     void incr_FE() {FE_duration_cycle++;}
     void incr_DE() {DE_duration_cycle++;}
@@ -78,6 +115,14 @@ class Instruction
     void set_begin_EX(int time) {EX_begin_cycle=time;}
     void set_begin_WB(int time) {WB_begin_cycle=time;}
     void set_begin_RT(int time) {RT_begin_cycle=time;}
+    
+    long get_PC() { return PC; }
+    int get_Dest_Reg() { return Dest_Reg; }
+    int get_Src1_Reg() { return Src1_Reg; }
+    int get_Src2_Reg() { return Src2_Reg; }
+    void set_Renamed_Src1_Reg(int reg) { this->Renamed_Src1_Reg = reg; }
+    void set_Renamed_Src2_Reg(int reg) { this->Renamed_Src2_Reg = reg; }
+    void set_Renamed_Dest_Reg(int reg) { this->Renamed_Dest_Reg = reg; }
 };
 
 void Instruction::print()
@@ -85,7 +130,7 @@ void Instruction::print()
     cout<<seq<<" fu{"<<OpType<<"} src{"<<Src1_Reg<<","<<Src2_Reg<<"} dst{"<<Dest_Reg<<"} FE{"<<FE_begin_cycle<<","<<FE_duration_cycle<<"} DE{"<<DE_begin_cycle<<","<<DE_duration_cycle<<"} RN{"<<RN_begin_cycle<<","<<RN_duration_cycle<<"} RR{"<<RR_begin_cycle<<","<<RR_duration_cycle<<"} DI{"<<DI_begin_cycle<<","<<DI_duration_cycle<<"} IS{"<<IS_begin_cycle<<","<<IS_duration_cycle<<"} EX{"<<EX_begin_cycle<<","<<EX_duration_cycle<<"} WB{"<<WB_begin_cycle<<","<<WB_duration_cycle<<"} RT{"<<RT_begin_cycle<<","<<RT_duration_cycle<<"}"<<endl; 
 }
 
-Instruction::Instruction(int seq, unsigned long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
+Instruction::Instruction(int seq, long PC, int op_type, int DR, int SR1, int SR2, int FE_begin_cycle)
 {
     this->seq = seq;
     this->PC = PC;
@@ -156,7 +201,7 @@ Instruction::Instruction()
 
 void Fetch(int width, int time)
 {
-    if(check_vacant_pointers(FE,width) == -1)
+    if(check_vacant_pointers(FE,width) < width)
     {
         for(int i=0;i<width;i++)
             FE[i]->incr_FE();
@@ -170,17 +215,16 @@ void Fetch(int width, int time)
                 DE[i]->set_begin_DE(time);
                 FE[i] = NULL;
             }
+            cout<<"Fetched Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                DE[i]->print();
         }
-
-        cout<<"Fetched Following Instructions"<<endl;
-        for(int i=0;i<width;i++)
-            DE[i]->print();
     }
 }
 
 void Decode(int width, int time)
 {
-    if(check_vacant_pointers(DE,width) == -1)
+    if(check_vacant_pointers(DE,width) < width)
     {
         for(int i=0;i<width;i++)
             DE[i]->incr_DE();
@@ -192,13 +236,114 @@ void Decode(int width, int time)
             for(int i=0; i<width;i++)
             {
                 RN[i] = DE[i];
+                RN[i]->set_begin_RN(time);
                 DE[i] = NULL;
             }
+            cout<<"Decoded Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                RN[i]->print();
         }
+    }
+}
 
-        cout<<"Decoded Following Instructions"<<endl;
+void Rename(int rob_size, int width, int time)
+{
+    if(check_vacant_pointers(RN,width) < width)
+    {
         for(int i=0;i<width;i++)
-            RN[i]->print();
+            RN[i]->incr_RN();
+        
+        //checking free entries in ROB
+        int rob_tail = tail->get_ROB_entry();
+        for(int i=0;i<width;i++)
+        {
+            rob_tail++;
+            if(rob_tail == 67)
+                rob_tail = 0;
+            
+            if(rob[rob_tail]->get_PC() != -1)
+                return;
+        }
+        
+        int vacant = check_vacant_pointers(RR,width);
+        cout<<vacant<<" RR pointers vacant\n";
+
+        if(vacant == width)
+        {
+            for(int i=0; i<width;i++)
+            {
+                //use RMT to figure if ARF value is available or ROB is needed
+                for(int j=0;j<67;j++)
+                {
+                    int Src1_Reg = RN[i]->get_Src1_Reg();
+                    if(Src1_Reg != -1)
+                        if(rmt[Src1_Reg]->get_valid() == 1)
+                            RN[i]->set_Renamed_Src1_Reg(rmt[Src1_Reg]->get_ROB_entry());
+                    
+                    int Src2_Reg = RN[i]->get_Src2_Reg();
+                    if(Src2_Reg != -1)
+                        if(rmt[Src2_Reg]->get_valid() == 1)
+                            RN[i]->set_Renamed_Src2_Reg(rmt[Src2_Reg]->get_ROB_entry());
+                }
+                
+                //map new ROB and RMT entry for destination register
+                if(RN[i]->get_Dest_Reg() != -1)
+                {
+                    int Dest_Reg = RN[i]->get_Dest_Reg();
+                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 0);
+                    RN[i]->set_Renamed_Dest_Reg(rmt[Dest_Reg]->get_ROB_entry());
+                    rmt[Dest_Reg] = new RMT(1,tail->get_ROB_entry());
+                }
+                
+                if(tail->get_ROB_entry() == 66)
+                    tail = rob[0];
+                else
+                    tail = rob[tail->get_ROB_entry() + 1];
+                
+                RR[i] = RN[i];
+                RR[i]->set_begin_RR(time);
+                RN[i] = NULL;
+            }
+            cout<<"Renamed Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                RR[i]->print();
+        }
+    }
+}
+
+// Regread
+//      check empty *DI pointers and if *RR is not NULL
+//      if empty then
+//          check if src Regs 1,2's ROB entry is ready
+//          if ready then
+//              set renamed src Regs ready flag to 1..(by default 0)
+//          end
+//          Transfer *RR to *DI
+//          set *RR to NULL
+//      end
+//
+
+void Regread(int rob_size, int width, int time)
+{
+    if(check_vacant_pointers(RR,width) < width)
+    {
+        for(int i=0;i<width;i++)
+            RR[i]->incr_RR();
+
+        int vacant = check_vacant_pointers(DI,width);
+        cout<<vacant<<" DI pointers vacant\n";
+        if(vacant == width)
+        {
+            for(int i=0; i<width;i++)
+            {
+                DI[i] = RR[i];
+                DI[i]->set_begin_DI(time);
+                RR[i] = NULL;
+            }
+            cout<<"Register Read Following Instructions"<<endl;
+            for(int i=0;i<width;i++)
+                DI[i]->print();
+        }
     }
 }
 
@@ -241,6 +386,8 @@ int main(int argc, char *argv[])
     RN = new Instruction*[width];
     DE = new Instruction*[width];
     FE = new Instruction*[width];
+    rob = new ROB*[rob_size];
+    rmt = new RMT*[67];
     
     for(int i=0;i<width;i++)
     {
@@ -260,6 +407,15 @@ int main(int argc, char *argv[])
         EX[i] = NULL;
         WB[i] = NULL;
     }
+    
+    for(int i=0;i<rob_size;i++)
+        rob[i] = new ROB(i);
+    
+    head = rob[0];
+    tail = rob[0];
+
+    for(int i=0;i<67;i++)
+        rmt[i] = new RMT;
 
     //Read Trace
     FILE *pFile = fopen(argv[4], "r");
@@ -268,17 +424,18 @@ int main(int argc, char *argv[])
 
     while(1)
     {
-        unsigned long PC;
+        long PC;
         int op_type,DR,SR1,SR2;
         fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
         cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
         FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
         i++;
-
+//At the end when traces are less than width...supply a new param left_over in place of width...do not change width
         if(i%width == 0 || feof(pFile))
         {
             j++;
-            cout<<"Pipeline\n";
+            Regread(rob_size,width,j);
+            Rename(rob_size,width,j);
             Decode(width,j);
             Fetch(width,j);
         }
@@ -290,7 +447,6 @@ int main(int argc, char *argv[])
     //Trace Completed...Finish the existing instructions
     while(1)
     {
-        cout<<"Pipeline\n";
         break;
     }
     return 0;
@@ -340,33 +496,3 @@ int main(int argc, char *argv[])
 //          end
 //      end
 //
-// Regread
-//      check empty *DI pointers and if *RR is not NULL
-//      if empty then
-//          check if src Regs 1,2's ROB entry is ready
-//          if ready then
-//              set renamed src Regs ready flag to 1..(by default 0)
-//          end
-//          Transfer *RR to *DI
-//          set *RR to NULL
-//      end
-//
-// Rename
-//      check empty RR pointers and empty ROB entries and *RN is not NULL
-//      if both empty then
-//          check RMT for src Regs1,2
-//          if RMT valid == 0, no renaming
-//          if RMT valid == 1, assign ROB entry to the Renamed Src Reg
-//          Allocate new ROB entry for Dest Reg and assign ROB entry to Renamed Dest Reg
-//          Transfer *RN to *RR
-//          set *RN to NULL
-//      end
-//
-// Decode
-//      check empty RN pointers
-//      if empty then
-//          Transfer *DE to *RN
-//          Set *DE to NULL
-//      end
-//
-// 
