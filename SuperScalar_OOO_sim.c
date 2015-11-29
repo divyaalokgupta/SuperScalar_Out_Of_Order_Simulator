@@ -43,6 +43,7 @@ class RMT
     RMT();
     RMT(int valid, int ROB_entry);
     int get_valid() { return valid; }
+    void set_valid(int valid) { this->valid = valid; }
     int get_ROB_entry() { return ROB_entry; }
 };
 
@@ -71,6 +72,7 @@ class ROB
     ROB(long PC, int Dest_Reg, int Ready);
     long get_PC() { return PC; }
     long get_Ready() { return Ready; }
+    void set_Ready(int ready) { this->Ready = ready; }
     int get_ROB_entry() { return ROB_entry; }
 };
 
@@ -576,6 +578,78 @@ void Execute(int iq_size, int width, int time)
     }
 }
 
+void Writeback(int width, int time)
+{
+    if(check_vacant_pointers(WB,5*width) < 5*width)
+    {
+        for(int i=0;i<width;i++)
+            if(WB[i] != NULL)
+                WB[i]->incr_WB();
+
+        int vacant = check_vacant_pointers(RT,5*width);
+        cout<<vacant<<" RT pointers vacant\n";
+        if(vacant >= width)
+        {
+            cout<<"Wrote Back Following Instructions"<<endl;
+            for(int i=0; i<5*width;i++)
+            {
+                if(WB[i] != NULL)
+                {
+                    //Find Empty RT slot
+                    int k;
+                    for(k=0;k<5*width;k++)
+                        if(RT[k] == NULL)
+                            break;
+                    
+                    if(k == 5*width)
+                        break;
+
+                    //Update ROB, RMT for completed Instruction
+                    int Dest_Reg = WB[i]->get_Dest_Reg();
+                    if(Dest_Reg != -1)
+                    {
+                        rob[Dest_Reg]->set_Ready(0);
+                        if(rmt[Dest_Reg]->get_valid() == 1 && rmt[Dest_Reg]->get_ROB_entry() == rob[Dest_Reg]->get_ROB_entry())
+                            rmt[Dest_Reg]->set_valid(0);
+                    }
+
+                    RT[k] = WB[i];
+                    RT[k]->set_begin_RT(time);
+                    RT[k]->print();
+                    WB[i] = NULL;
+                }
+            }
+        }
+    }
+}
+
+void Retire(int width, int time)
+{
+    if(check_vacant_pointers(RT,width) < width)
+    {
+        for(int i=0;i<width;i++)
+            RT[i]->incr_RT();
+
+        for(int i=0; i<5*width;i++)
+        {
+            if(RR[i]->get_Renamed_Src1_Reg_Ready() == 1 && RR[i]->get_Renamed_Src1_Reg() != -1)
+                if(rob[RR[i]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                    RR[i]->set_Renamed_Src1_Reg_Ready(0);
+            
+            if(RR[i]->get_Renamed_Src2_Reg_Ready() == 1 && RR[i]->get_Renamed_Src2_Reg() != -1)
+                if(rob[RR[i]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                    RR[i]->set_Renamed_Src2_Reg_Ready(0);
+
+            DI[i] = RR[i];
+            DI[i]->set_begin_DI(time);
+            RR[i] = NULL;
+        }
+        cout<<"Register Read Following Instructions"<<endl;
+        for(int i=0;i<width;i++)
+            DI[i]->print();
+    }
+}
+
 int check_vacant_pointers (class Instruction **pointer, int size)
 {
     int count = 0;
@@ -621,8 +695,6 @@ int main(int argc, char *argv[])
     for(int i=0;i<width;i++)
     {
         Inst[i] = new Instruction;
-        RT[i] = NULL; 
-        WB[i] = NULL; 
         IS[i] = NULL; 
         DI[i] = NULL; 
         RR[i] = NULL; 
@@ -636,6 +708,7 @@ int main(int argc, char *argv[])
     
     for(int i=0;i<5*width;i++)
     {
+        RT[i] = NULL; 
         EX[i] = NULL;
         WB[i] = NULL;
     }
@@ -666,6 +739,7 @@ int main(int argc, char *argv[])
         if(i%width == 0 || feof(pFile))
         {
             j++;
+            Writeback(width,j);
             Execute(iq_size,width,j);
             Issue(iq_size,width,j);
             Dispatch(iq_size,width,j);
