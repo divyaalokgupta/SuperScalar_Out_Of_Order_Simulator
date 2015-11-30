@@ -287,12 +287,12 @@ void Rename(int rob_size, int width, int time)
         int rob_tail = tail->get_ROB_entry();
         for(int i=0;i<width;i++)
         {
-            rob_tail++;
-            if(rob_tail == 67)
-                rob_tail = 0;
-            
-            if(rob[rob_tail]->get_PC() != -1)
+            if(rob[rob_tail]->get_PC() != -1 && rob[rob_tail]->get_Ready() == 0)
                 return;
+
+            rob_tail++;
+            if(rob_tail == rob_size)
+                rob_tail = 0;
         }
         
         int vacant = check_vacant_pointers(RR,width);
@@ -324,7 +324,7 @@ void Rename(int rob_size, int width, int time)
                 }
                 else
                         RN[i]->set_Renamed_Src2_Reg_Ready(0);
-                
+
                 //map new ROB and RMT entry for destination register
                 if(RN[i]->get_Dest_Reg() != -1)
                 {
@@ -340,8 +340,8 @@ void Rename(int rob_size, int width, int time)
                     RN[i]->set_Renamed_Dest_Reg(tail->get_ROB_entry());
                     if (DEBUG) cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<tail->get_ROB_entry()<<" Details: Dest Reg "<<tail->get_Dest_Reg()<<endl;
                 }
-                                
-                if(tail->get_ROB_entry() == 66)
+                
+                if(tail->get_ROB_entry() == rob_size - 1)
                     tail = rob[0];
                 else
                     tail = rob[tail->get_ROB_entry() + 1];
@@ -400,7 +400,15 @@ void Dispatch(int iq_size, int width, int time)
 
         int vacant = check_vacant_pointers(IQ,iq_size);
         if (DEBUG) cout<<vacant<<" IQ pointers vacant\n";
-        if(vacant >= width)
+
+        //Check Invalid Issue Queue entries
+        int count = 0;
+        for(int k=0;k<iq_size;k++)
+            if(IQ[k] != NULL)
+                if(IQ[k]->get_valid()==1)
+                    count++;
+
+        if(vacant >= width || count >= width)
         {
             if (DEBUG) cout<<"Dispatched Following Instructions"<<endl;
             for(int i=0; i<width;i++)
@@ -444,7 +452,37 @@ void Dispatch(int iq_size, int width, int time)
                      }
                 }
             }
+        }
+    }
+}
 
+void sort(class Instruction **Inst, int size)
+{
+    class Instruction *tmp;
+    int min;
+    for(int i=0;i<size;i++)
+    {
+        if(Inst[i] != NULL)
+        {
+            if(Inst[i]->get_valid() == 0)
+            {
+                tmp = Inst[i];
+                min = Inst[i]->get_seq();
+                for(int l=i+1;l<size;l++)
+                {
+                    if(Inst[l] != NULL)
+                    {
+                        if(Inst[l]->get_valid() == 0)
+                        {
+                            if(Inst[l]->get_seq() < min)
+                            {
+                                Inst[i] = Inst[l];
+                                Inst[l] = tmp;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -463,6 +501,8 @@ void Issue(int iq_size,int width, int time)
         if(vacant >= width)
         {
             //Chuck up to width oldest instructions to EX whose both inputs are ready
+            //Search for oldest instruction
+
             if (DEBUG) cout<<"Issued Following Instructions"<<endl;
             for(int i=0; i<width;i++)
             {
@@ -473,6 +513,7 @@ void Issue(int iq_size,int width, int time)
 
                 if(k == 5*width)
                     break;
+
 
                 for(int j=0;j<iq_size;j++)
                 {
@@ -538,6 +579,7 @@ void Execute(int iq_size, int width, int time)
                         
                         if(k == 5*width)
                             break;
+
                         //Wakeup source operands in RR, DI and IQ through bypasses
                         for(int j=0;j<width;j++)
                         {
@@ -589,7 +631,7 @@ void Execute(int iq_size, int width, int time)
     }
 }
 
-void Writeback(int width, int time)
+void Writeback(int rob_size, int width, int time)
 {
     if(check_vacant_pointers(WB,5*width) < 5*width)
     {
@@ -597,9 +639,9 @@ void Writeback(int width, int time)
             if(WB[i] != NULL)
                 WB[i]->incr_WB();
 
-        int vacant = check_vacant_pointers(RT,5*width);
+        int vacant = check_vacant_pointers(RT,rob_size);
         if (DEBUG) cout<<vacant<<" RT pointers vacant\n";
-        if(vacant >= 0)
+        if(vacant > 0)
         {
             if (DEBUG) cout<<"Wrote Back Following Instructions"<<endl;
             for(int i=0; i<5*width;i++)
@@ -608,11 +650,11 @@ void Writeback(int width, int time)
                 {
                     //Find Empty RT slot
                     int k;
-                    for(k=0;k<5*width;k++)
+                    for(k=0;k<rob_size;k++)
                         if(RT[k] == NULL)
                             break;
                     
-                    if(k == 5*width)
+                    if(k == rob_size)
                         break;
 
                     //Update ROB, RMT for completed Instruction
@@ -634,18 +676,18 @@ void Writeback(int width, int time)
     }
 }
 
-void Retire(int width, int time)
+void Retire(int rob_size, int width, int time)
 {
-    if(check_vacant_pointers(RT,5*width) < 5*width)
+    if(check_vacant_pointers(RT,rob_size) < rob_size)
     {
-        for(int i=0;i<5*width;i++)
+        for(int i=0;i<rob_size;i++)
             if(RT[i] != NULL)
                 RT[i]->incr_RT();
 
         if (DEBUG) cout<<"Retired Following Instructions"<<endl;
         for(int i=0; i<width;i++)
         {
-            for(int j=0;j<5*width;j++)
+            for(int j=0;j<rob_size;j++)
             {
                 if(RT[j] != NULL)
                 {
@@ -697,7 +739,7 @@ int main(int argc, char *argv[])
 
     //Mem Allocation for class Instruction
     Inst = new Instruction*[width];
-    RT = new Instruction*[5*width];
+    RT = new Instruction*[rob_size];
     WB = new Instruction*[5*width];
     EX = new Instruction*[5*width];
     IQ = new Instruction*[iq_size];
@@ -726,13 +768,17 @@ int main(int argc, char *argv[])
     
     for(int i=0;i<5*width;i++)
     {
-        RT[i] = NULL; 
         EX[i] = NULL;
         WB[i] = NULL;
     }
+        
+    for(int i=0;i<6*width;i++)
     
     for(int i=0;i<rob_size;i++)
+    {
         rob[i] = new ROB(i);
+        RT[i] = NULL; 
+    }
     
     head = rob[0];
     tail = rob[0];
@@ -749,16 +795,20 @@ int main(int argc, char *argv[])
     {
         long PC;
         int op_type,DR,SR1,SR2;
-        fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
-        if (DEBUG) cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
-        FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
+
+        if(check_vacant_pointers(FE,width) != -1 && !feof(pFile))
+        {
+            fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
+            if (DEBUG) cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
+            FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
+        }
         i++;
         //At the end when traces are less than width...supply a new param left_over in place of width...do not change width
         if(i%width == 0 || feof(pFile))
         {
             j++;
-            Retire(width,j);
-            Writeback(width,j);
+            Retire(rob_size,width,j);
+            Writeback(rob_size,width,j);
             Execute(iq_size,width,j);
             Issue(iq_size,width,j);
             Dispatch(iq_size,width,j);
