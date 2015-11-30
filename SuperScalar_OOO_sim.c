@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int DEBUG = 0;
+int DEBUG = 1;
 
 class Instruction **Inst;
 class Instruction **RT; 
@@ -83,7 +83,7 @@ ROB::ROB(int i)
 {
     PC = -1;
     Dest_Reg = -1;
-    Ready = 1;
+    Ready = -1;
     ROB_entry = i;
 }
 
@@ -95,7 +95,7 @@ ROB::ROB(long PC, int Dest_Reg, int Ready, int ROB_entry)
     this->ROB_entry = ROB_entry;
 }
 
-class ROB *head, *tail;
+int head, tail;
 class ROB **rob;
 
 class Instruction
@@ -282,11 +282,14 @@ void Rename(int rob_size, int width, int time)
             RN[i]->incr_RN();
         
         //checking free entries in ROB
-        int rob_tail = tail->get_ROB_entry();
+        int rob_tail = rob[tail]->get_ROB_entry();
         for(int i=0;i<width;i++)
         {
-            if(rob[rob_tail]->get_PC() != -1 && rob[rob_tail]->get_Ready() == 0)
+            if(rob[rob_tail]->get_Ready() == 1)
+            {
+                cout<<"No free entries in ROB\n";
                 return;
+            }
 
             rob_tail++;
             if(rob_tail == rob_size)
@@ -327,22 +330,22 @@ void Rename(int rob_size, int width, int time)
                 if(RN[i]->get_Dest_Reg() != -1)
                 {
                     int Dest_Reg = RN[i]->get_Dest_Reg();
-                    tail = new ROB(RN[i]->get_PC(), Dest_Reg, 1,tail->get_ROB_entry());
-                    rmt[Dest_Reg] = new RMT(1,tail->get_ROB_entry());
+                    rob[tail] = new ROB(RN[i]->get_PC(), Dest_Reg, 1,rob[tail]->get_ROB_entry());
+                    rmt[Dest_Reg] = new RMT(1,rob[tail]->get_ROB_entry());
                     RN[i]->set_Renamed_Dest_Reg(rmt[Dest_Reg]->get_ROB_entry());
-                    if (DEBUG) cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<tail->get_ROB_entry()<<" Details: Dest Reg "<<tail->get_Dest_Reg()<<endl;
+                    if (DEBUG) cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<rob[tail]->get_ROB_entry()<<" Details: Dest Reg "<<rob[tail]->get_Dest_Reg()<<" PC "<<rob[tail]->get_PC()<<endl;
                 }
                 else //Add conditions when there is no Dest Reg.
                 {
-                    tail = new ROB(RN[i]->get_PC(),-1,1,tail->get_ROB_entry());
-                    RN[i]->set_Renamed_Dest_Reg(tail->get_ROB_entry());
-                    if (DEBUG) cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<tail->get_ROB_entry()<<" Details: Dest Reg "<<tail->get_Dest_Reg()<<endl;
+                    rob[tail] = new ROB(RN[i]->get_PC(),-1,1,rob[tail]->get_ROB_entry());
+                    RN[i]->set_Renamed_Dest_Reg(rob[tail]->get_ROB_entry());
+                    if (DEBUG) cout<<"Allocating ROB for Instruction "<<RN[i]->get_seq()<<" at "<<rob[tail]->get_ROB_entry()<<" Details: Dest Reg "<<rob[tail]->get_Dest_Reg()<<" PC "<<rob[tail]->get_PC()<<endl;
                 }
                 
-                if(tail->get_ROB_entry() == rob_size - 1)
-                    tail = rob[0];
+                if(tail == rob_size - 1)
+                    tail = 0;
                 else
-                    tail = rob[tail->get_ROB_entry() + 1];
+                    tail++;
                                     
                 RR[i] = RN[i];
                 RR[i]->set_begin_RR(time);
@@ -690,12 +693,10 @@ void Writeback(int rob_size, int width, int time)
 
                     //Update ROB, RMT for completed Instruction
                     int Dest_Reg = WB[i]->get_Renamed_Dest_Reg();
-                    if(Dest_Reg != -1)
-                    {
-                        rob[Dest_Reg]->set_Ready(0);
-                        if(rmt[Dest_Reg]->get_valid() == 1 && rmt[Dest_Reg]->get_ROB_entry() == rob[Dest_Reg]->get_ROB_entry())
-                            rmt[Dest_Reg]->set_valid(0);
-                    }
+                    rob[Dest_Reg]->set_Ready(0);
+                    if(WB[i]->get_Dest_Reg() != -1)
+                        if(rmt[WB[i]->get_Dest_Reg()]->get_valid() == 1 && rmt[WB[i]->get_Dest_Reg()]->get_ROB_entry() == rob[Dest_Reg]->get_ROB_entry())
+                            rmt[WB[i]->get_Dest_Reg()]->set_valid(0);
 
                     RT[k] = WB[i];
                     RT[k]->set_begin_RT(time);
@@ -722,17 +723,17 @@ void Retire(int rob_size, int width, int time)
             {
                 if(RT[j] != NULL)
                 {
-                    if(RT[j]->get_Renamed_Dest_Reg() == head->get_ROB_entry())
+                    if(RT[j]->get_Renamed_Dest_Reg() == rob[head]->get_ROB_entry())
                     {
                         RT[j]->print();
                         RT[j] = NULL;
                         
-                        int rob_head = head->get_ROB_entry();
+                        int rob_head = rob[head]->get_ROB_entry();
                         rob_head++;
                         if(rob_head == rob_size)
                             rob_head = 0;
-                        head = rob[rob_head];
-                        if (DEBUG) cout<<"New Head: "<<rob_head<<" "<<head->get_Dest_Reg()<<endl;
+                        head = rob[rob_head]->get_ROB_entry();
+                        if (DEBUG) cout<<"New Head: "<<rob_head<<" "<<rob[head]->get_Dest_Reg()<<endl;
                         break;
                     }
                 }
@@ -811,8 +812,8 @@ int main(int argc, char *argv[])
         RT[i] = NULL; 
     }
     
-    head = rob[0];
-    tail = rob[0];
+    head = 0;
+    tail = 0;
 
     for(int i=0;i<67;i++)
         rmt[i] = new RMT;
