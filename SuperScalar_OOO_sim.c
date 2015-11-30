@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int DEBUG = 1;
+int DEBUG = 0;
 
 class Instruction **Inst;
 class Instruction **RT; 
@@ -97,8 +97,6 @@ ROB::ROB(long PC, int Dest_Reg, int Ready, int ROB_entry)
 
 class ROB *head, *tail;
 class ROB **rob;
-// Public Functions
-// rename src regs using RMT if valid bit is zero need not rename else associate a ROB entry using head, rename dest regs for an instruction by associating a new ROB entry and updating RMT
 
 class Instruction
 {
@@ -399,7 +397,6 @@ void Dispatch(int iq_size, int width, int time)
             DI[i]->incr_DI();
 
         int vacant = check_vacant_pointers(IQ,iq_size);
-        if (DEBUG) cout<<vacant<<" IQ pointers vacant\n";
 
         //Check Invalid Issue Queue entries
         int count = 0;
@@ -407,6 +404,7 @@ void Dispatch(int iq_size, int width, int time)
             if(IQ[k] != NULL)
                 if(IQ[k]->get_valid()==1)
                     count++;
+        if (DEBUG) cout<<vacant<<" IQ pointers vacant / "<<count<<" IQ pointers invalid\n";
 
         if(vacant >= width || count >= width)
         {
@@ -456,36 +454,36 @@ void Dispatch(int iq_size, int width, int time)
     }
 }
 
-void sort(class Instruction **Inst, int size)
-{
-    class Instruction *tmp;
-    int min;
-    for(int i=0;i<size;i++)
-    {
-        if(Inst[i] != NULL)
-        {
-            if(Inst[i]->get_valid() == 0)
-            {
-                tmp = Inst[i];
-                min = Inst[i]->get_seq();
-                for(int l=i+1;l<size;l++)
-                {
-                    if(Inst[l] != NULL)
-                    {
-                        if(Inst[l]->get_valid() == 0)
-                        {
-                            if(Inst[l]->get_seq() < min)
-                            {
-                                Inst[i] = Inst[l];
-                                Inst[l] = tmp;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+//void sort(class Instruction **Inst, int size)
+//{
+//    class Instruction *tmp;
+//    int min;
+//    for(int i=0;i<size;i++)
+//    {
+//        if(Inst[i] != NULL)
+//        {
+//            if(Inst[i]->get_valid() == 0)
+//            {
+//                tmp = Inst[i];
+//                min = Inst[i]->get_seq();
+//                for(int l=i+1;l<size;l++)
+//                {
+//                    if(Inst[l] != NULL)
+//                    {
+//                        if(Inst[l]->get_valid() == 0)
+//                        {
+//                            if(Inst[l]->get_seq() < min)
+//                            {
+//                                Inst[i] = Inst[l];
+//                                Inst[l] = tmp;
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 void Issue(int iq_size,int width, int time)
 {
@@ -500,12 +498,30 @@ void Issue(int iq_size,int width, int time)
         if (DEBUG) cout<<vacant<<" EX pointers vacant\n";
         if(vacant >= width)
         {
+            for(int j=0;j<iq_size;j++)
+            {
+                if(IQ[j] != NULL)
+                {
+                    if(IQ[j]->get_valid() == 0)
+                    {
+                        if(IQ[j]->get_Renamed_Src1_Reg() != -1 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 1)
+                            if(rob[IQ[j]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
+                                IQ[j]->set_Renamed_Src1_Reg_Ready(0);
+                        
+                        if(IQ[j]->get_Renamed_Src2_Reg() != -1 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 1)
+                            if(rob[IQ[j]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
+                                IQ[j]->set_Renamed_Src2_Reg_Ready(0);
+                    }
+                }
+            }
+            
             //Chuck up to width oldest instructions to EX whose both inputs are ready
             //Search for oldest instruction
 
             if (DEBUG) cout<<"Issued Following Instructions"<<endl;
             for(int i=0; i<width;i++)
             {
+                //Find slot in EX queue
                 int k;
                 for(k=0;k<5*width;k++)
                     if(EX[k] == NULL)
@@ -514,36 +530,51 @@ void Issue(int iq_size,int width, int time)
                 if(k == 5*width)
                     break;
 
+                long min = -1;
+                for(int j=0;j<iq_size;j++)
+                {
+                    if(IQ[j] != NULL)
+                    {
+                        if(IQ[j]->get_valid() == 0 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 0 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 0)
+                        {
+                            min = IQ[j]->get_seq();
+                            break;
+                        }
+                    }
+                }
+
+                if(min == -1)
+                    break;
 
                 for(int j=0;j<iq_size;j++)
                 {
                     if(IQ[j] != NULL)
                     {
-                        if(IQ[j]->get_valid() == 0)
+                        if(IQ[j]->get_valid() == 0 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 0 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 0 && IQ[j]->get_seq() < min)
                         {
-                            if(IQ[j]->get_Renamed_Src1_Reg() != -1 && IQ[j]->get_Renamed_Src1_Reg_Ready() == 1)
-                                if(rob[IQ[j]->get_Renamed_Src1_Reg()]->get_Ready() == 0)
-                                    IQ[j]->set_Renamed_Src1_Reg_Ready(0);
-                            
-                            if(IQ[j]->get_Renamed_Src2_Reg() != -1 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 1)
-                                if(rob[IQ[j]->get_Renamed_Src2_Reg()]->get_Ready() == 0)
-                                    IQ[j]->set_Renamed_Src2_Reg_Ready(0);
-               
-                            if(IQ[j]->get_Renamed_Src1_Reg_Ready() == 0 && IQ[j]->get_Renamed_Src2_Reg_Ready() == 0)
+                            min = IQ[j]->get_seq();
+                        }
+                    }
+                }
+
+                for(int j=0;j<iq_size;j++)
+                {
+                    if(IQ[j] != NULL)
+                    {
+                        if(IQ[j]->get_seq() == min)
+                        {
+                            EX[k] = IQ[j];
+                            EX[k]->set_begin_EX(time);
+                            switch(EX[k]->get_op_type())
                             {
-                                EX[k] = IQ[j];
-                                EX[k]->set_begin_EX(time);
-                                switch(EX[k]->get_op_type())
-                                {
-                                    case 0: EX[k]->set_execute_latency(1); break;
-                                    case 1: EX[k]->set_execute_latency(2); break;
-                                    case 2: EX[k]->set_execute_latency(5); break;
-                                    default: cout<<"Erroneous op_type "<<EX[k]->get_op_type()<<endl; exit(-1);
-                                }
-                                if (DEBUG) EX[k]->print();
-                                IQ[j]->set_valid(1);
-                                break;
+                                case 0: EX[k]->set_execute_latency(1); break;
+                                case 1: EX[k]->set_execute_latency(2); break;
+                                case 2: EX[k]->set_execute_latency(5); break;
+                                default: cout<<"Erroneous op_type "<<EX[k]->get_op_type()<<endl; exit(-1);
                             }
+                            if (DEBUG) EX[k]->print();
+                            IQ[j]->set_valid(1);
+                            break;
                         }
                     }
                 }
@@ -698,7 +729,7 @@ void Retire(int rob_size, int width, int time)
                         
                         int rob_head = head->get_ROB_entry();
                         rob_head++;
-                        if(rob_head == 67)
+                        if(rob_head == rob_size)
                             rob_head = 0;
                         head = rob[rob_head];
                         if (DEBUG) cout<<"New Head: "<<rob_head<<" "<<head->get_Dest_Reg()<<endl;
@@ -788,8 +819,8 @@ int main(int argc, char *argv[])
 
     //Read Trace
     FILE *pFile = fopen(argv[4], "r");
-    int i = 0;
-    int j = 0;
+    long i = 0;
+    long j = 0;
 
     while(1)
     {
