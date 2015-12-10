@@ -230,6 +230,9 @@ void Fetch(int width, int time)
 {
     if(check_vacant_pointers(FE,width) < width)
     {
+        if(check_vacant_pointers(FE,width) != -1)
+            width = width - check_vacant_pointers(FE,width);
+
         for(int i=0;i<width;i++)
         {
             FE[i]->incr_FE();
@@ -261,6 +264,8 @@ void Decode(int width, int time)
 {
     if(check_vacant_pointers(DE,width) < width)
     {
+        if(check_vacant_pointers(DE,width) != -1)
+            width = width - check_vacant_pointers(DE,width);
         for(int i=0;i<width;i++)
             DE[i]->incr_DE();
 
@@ -286,6 +291,8 @@ void Rename(int rob_size, int width, int time)
 {
     if(check_vacant_pointers(RN,width) < width)
     {
+        if(check_vacant_pointers(RN,width) != -1)
+            width = width - check_vacant_pointers(RN,width);
         for(int i=0;i<width;i++)
             RN[i]->incr_RN();
          
@@ -372,6 +379,8 @@ void Regread(int width, int time)
 {
     if(check_vacant_pointers(RR,width) < width)
     {
+        if(check_vacant_pointers(RR,width) != -1)
+            width = width - check_vacant_pointers(RR,width);
         for(int i=0;i<width;i++)
             RR[i]->incr_RR();
 
@@ -405,6 +414,8 @@ void Dispatch(int iq_size, int width, int time)
 {
     if(check_vacant_pointers(DI,width) < width)
     {
+        if(check_vacant_pointers(DI,width) != -1)
+            width = width - check_vacant_pointers(DI,width);
         for(int i=0;i<width;i++)
             DI[i]->incr_DI();
 
@@ -857,13 +868,17 @@ int main(int argc, char *argv[])
                 if (DEBUG) cout<<"Read Instruction "<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
                 FE[k] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
                 i++;
+                if(feof(pFile))
+                {
+                    if (DEBUG) cout<<"Fetching Last Instruction\n";
+                    break;
+                }
             }
         }
         Fetch(width,j);
-
         j++;
         
-        if(check_vacant_pointers(FE,width) == width && check_vacant_pointers(DE,width) == width && check_vacant_pointers(RT,rob_size) == rob_size)
+        if(check_vacant_pointers(FE,width) == width && check_vacant_pointers(DE,width) == width && check_vacant_pointers(RN,width) == width && check_vacant_pointers(RR,width) == width && check_vacant_pointers(DI,width) == width && check_vacant_pointers(RT,rob_size) == rob_size)
             break;
     }
     std::cout << std::fixed;
