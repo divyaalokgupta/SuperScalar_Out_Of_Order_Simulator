@@ -2,7 +2,7 @@ all:
 	g++ SuperScalar_OOO_sim.c -g -Wall -o sim
 
 debug:
-	gdb --args ./sim 60 15 3 ./trace/val_trace_gcc1
+	gdb --args ./sim 128 16 5 ./trace/val_trace_perl1
 
 test:
 	./sim 16 8 1 ./trace/val_trace_gcc1 > 5 && gvimdiff 5 ValidationRuns/val1.txt

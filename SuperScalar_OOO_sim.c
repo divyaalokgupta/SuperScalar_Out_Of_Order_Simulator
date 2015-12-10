@@ -427,9 +427,10 @@ void Dispatch(int iq_size, int width, int time)
             if(IQ[k] != NULL)
                 if(IQ[k]->get_valid()==1)
                     count++;
+
         if (DEBUG) cout<<vacant<<" IQ pointers vacant / "<<count<<" IQ pointers invalid\n";
 
-        if(vacant >= width || count >= width)
+        if(vacant >= width || count >= width || vacant + count >= width)
         {
             if (DEBUG) cout<<"Dispatched Following Instructions"<<endl;
             for(int i=0; i<width;i++)
@@ -476,37 +477,6 @@ void Dispatch(int iq_size, int width, int time)
         }
     }
 }
-
-//void sort(class Instruction **Inst, int size)
-//{
-//    class Instruction *tmp;
-//    int min;
-//    for(int i=0;i<size;i++)
-//    {
-//        if(Inst[i] != NULL)
-//        {
-//            if(Inst[i]->get_valid() == 0)
-//            {
-//                tmp = Inst[i];
-//                min = Inst[i]->get_seq();
-//                for(int l=i+1;l<size;l++)
-//                {
-//                    if(Inst[l] != NULL)
-//                    {
-//                        if(Inst[l]->get_valid() == 0)
-//                        {
-//                            if(Inst[l]->get_seq() < min)
-//                            {
-//                                Inst[i] = Inst[l];
-//                                Inst[l] = tmp;
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}
 
 void Issue(int iq_size,int width, int time)
 {
@@ -711,12 +681,9 @@ void Writeback(int rob_size, int width, int time)
                     if(k == rob_size)
                         break;
 
-                    //Update ROB, RMT for completed Instruction
+                    //Update ROB, for completed Instruction
                     int Dest_Reg = WB[i]->get_Renamed_Dest_Reg();
                     rob[Dest_Reg]->set_Ready(0);
-                    if(WB[i]->get_Dest_Reg() != -1)
-                        if(rmt[WB[i]->get_Dest_Reg()]->get_valid() == 1 && rmt[WB[i]->get_Dest_Reg()]->get_ROB_entry() == rob[Dest_Reg]->get_ROB_entry())
-                            rmt[WB[i]->get_Dest_Reg()]->set_valid(0);
 
                     RT[k] = WB[i];
                     RT[k]->set_begin_RT(time+1);
@@ -745,10 +712,25 @@ void Retire(int rob_size, int width, int time)
                 {
                     if(RT[j]->get_Renamed_Dest_Reg() == rob[head]->get_ROB_entry())
                     {
+                        for(int k=0;k<width;k++)
+                        {
+                            if(RR[k] != NULL)
+                            {
+                                if(RR[k]->get_Renamed_Src1_Reg_Ready() == 1 && RR[k]->get_Renamed_Src1_Reg() != -1)
+                                    if(RR[k]->get_Renamed_Src1_Reg() == RT[j]->get_Renamed_Dest_Reg())
+                                        RR[k]->set_Renamed_Src1_Reg_Ready(0);
+                                
+                                if(RR[k]->get_Renamed_Src2_Reg_Ready() == 1 && RR[k]->get_Renamed_Src2_Reg() != -1)
+                                    if(RR[k]->get_Renamed_Src2_Reg() == RT[j]->get_Renamed_Dest_Reg())
+                                        RR[k]->set_Renamed_Src2_Reg_Ready(0);
+                            }
+                        }
                         RT[j]->print();
-                        RT[j] = NULL;
-                        
                         int rob_head = rob[head]->get_ROB_entry();
+                        if(RT[j]->get_Dest_Reg() != -1)
+                            if(rmt[RT[j]->get_Dest_Reg()]->get_valid() == 1 && rmt[RT[j]->get_Dest_Reg()]->get_ROB_entry() == rob[head]->get_ROB_entry())
+                                rmt[RT[j]->get_Dest_Reg()]->set_valid(0);
+                        RT[j] = NULL;
                         rob[head] = new ROB(head);
                         rob_head++;
                         if(rob_head == rob_size)
