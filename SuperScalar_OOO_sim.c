@@ -118,7 +118,7 @@ class Instruction
     void incr_WB() {WB_duration_cycle++;}
     void incr_RT() {RT_duration_cycle++;}
     
-    void set_begin_FE(int time) {FE_begin_cycle=time;}
+    void set_begin_FE(int time) {FE_begin_cycle=time; FE_duration_cycle= 0;}
     void set_begin_DE(int time) {DE_begin_cycle=time;}
     void set_begin_RR(int time) {RR_begin_cycle=time;}
     void set_begin_RN(int time) {RN_begin_cycle=time;}
@@ -246,11 +246,11 @@ void Fetch(int width, int time)
                 for(int i=0;i<width;i++)
                     DE[i]->print();
         }
-        else
-        {
-            for(int i=0; i<width;i++)
-                FE[i] = NULL;
-        }
+//        else
+//        {
+//            for(int i=0; i<width;i++)
+//                FE[i] = NULL;
+//        }
     }
 }
 
@@ -835,18 +835,9 @@ int main(int argc, char *argv[])
         long PC;
         int op_type,DR,SR1,SR2;
 
-        if(check_vacant_pointers(FE,width) > -1 && !feof(pFile))
-        {
-            fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
-            if (DEBUG) cout<<"Read Instruction "<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
-            FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
-        }
-        
-        i++;
         //At the end when traces are less than width...supply a new param left_over in place of width...do not change width
-        if(i%width == 0 || feof(pFile))
+        if(!feof(pFile))
         {
-            j++;
             Retire(rob_size,width,j);
             Writeback(rob_size,width,j);
             Execute(iq_size,width,j);
@@ -859,6 +850,34 @@ int main(int argc, char *argv[])
             Decode(width,j);
             Fetch(width,j);
         }
+
+        if(check_vacant_pointers(FE,width) == width && !feof(pFile))
+        {
+            for(int k=0;k<width;k++)
+            {
+                fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
+                if (DEBUG) cout<<"Read Instruction "<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
+                FE[k] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
+                i++;
+//                FE[k]->incr_FE();
+            }
+//            int vacant = check_vacant_pointers(DE,width);
+//            if (DEBUG) cout<<vacant<<" DE pointers vacant\n";
+//            if(vacant == width)
+//            {
+//                for(int k=0; k<width;k++)
+//                {
+//                    DE[k] = FE[k];
+//                    DE[k]->set_begin_DE(j+1);
+//                    FE[k] = NULL;
+//                }
+//                if (DEBUG) cout<<"Fetched Following Instructions"<<endl;
+//                if(DEBUG)
+//                    for(int k=0;k<width;k++)
+//                        DE[k]->print();
+//            }
+        }
+        j++;
         
         if(feof(pFile))
             break;
