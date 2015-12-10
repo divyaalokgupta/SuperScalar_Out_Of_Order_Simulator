@@ -4,6 +4,7 @@
 #include<string>
 #include<cstring>
 #include<cstdio>
+#include<iomanip>
 #include<cstdlib>
 
 //1 NOT READY INVALID
@@ -11,7 +12,7 @@
 
 using namespace std;
 
-int DEBUG = 1;
+int DEBUG = 0;
 
 class Instruction **Inst;
 class Instruction **RT; 
@@ -230,7 +231,9 @@ void Fetch(int width, int time)
     if(check_vacant_pointers(FE,width) < width)
     {
         for(int i=0;i<width;i++)
+        {
             FE[i]->incr_FE();
+        }
         int vacant = check_vacant_pointers(DE,width);
         if (DEBUG) cout<<vacant<<" DE pointers vacant\n";
         if(vacant == width)
@@ -238,7 +241,7 @@ void Fetch(int width, int time)
             for(int i=0; i<width;i++)
             {
                 DE[i] = FE[i];
-                DE[i]->set_begin_DE(time);
+                DE[i]->set_begin_DE(time+1);
                 FE[i] = NULL;
             }
             if (DEBUG) cout<<"Fetched Following Instructions"<<endl;
@@ -268,7 +271,7 @@ void Decode(int width, int time)
             for(int i=0; i<width;i++)
             {
                 RN[i] = DE[i];
-                RN[i]->set_begin_RN(time);
+                RN[i]->set_begin_RN(time+1);
                 DE[i] = NULL;
             }
             if (DEBUG) cout<<"Decoded Following Instructions"<<endl;
@@ -288,12 +291,12 @@ void Rename(int rob_size, int width, int time)
          
         //checking free entries in ROB
         int rob_tail = rob[tail]->get_ROB_entry();
-        cout<<"Rename Tail: "<<tail<<endl;
+        if(DEBUG)  cout<<"Rename Tail: "<<tail<<endl;
         for(int i=0;i<width;i++)
         {
             if(rob[rob_tail]->get_Ready() != -1)
             {
-                cout<<"No free entries in ROB\n";
+                if(DEBUG)  cout<<"No free entries in ROB\n";
                 return;
             }
 
@@ -354,7 +357,7 @@ void Rename(int rob_size, int width, int time)
                     tail++;
                                     
                 RR[i] = RN[i];
-                RR[i]->set_begin_RR(time);
+                RR[i]->set_begin_RR(time+1);
                 RN[i] = NULL;
             }
             if (DEBUG) cout<<"Renamed Following Instructions"<<endl;
@@ -387,7 +390,7 @@ void Regread(int width, int time)
                         RR[i]->set_Renamed_Src2_Reg_Ready(0);
 
                 DI[i] = RR[i];
-                DI[i]->set_begin_DI(time);
+                DI[i]->set_begin_DI(time+1);
                 RR[i] = NULL;
             }
             if (DEBUG) cout<<"Register Read Following Instructions"<<endl;
@@ -435,7 +438,7 @@ void Dispatch(int iq_size, int width, int time)
                     {
                         found_spot = 1;
                         IQ[j] = DI[i];
-                        IQ[j]->set_begin_IQ(time);
+                        IQ[j]->set_begin_IQ(time+1);
                         IQ[j]->set_valid(0);
                         if (DEBUG) IQ[j]->print();
                         DI[i] = NULL;
@@ -450,7 +453,7 @@ void Dispatch(int iq_size, int width, int time)
                          {
                              found_spot = 1;
                              IQ[j] = DI[i];
-                             IQ[j]->set_begin_IQ(time);
+                             IQ[j]->set_begin_IQ(time+1);
                              IQ[j]->set_valid(0);
                              if (DEBUG) IQ[j]->print();
                              DI[i] = NULL;
@@ -573,7 +576,7 @@ void Issue(int iq_size,int width, int time)
                         if(IQ[j]->get_seq() == min)
                         {
                             EX[k] = IQ[j];
-                            EX[k]->set_begin_EX(time);
+                            EX[k]->set_begin_EX(time+1);
                             switch(EX[k]->get_op_type())
                             {
                                 case 0: EX[k]->set_execute_latency(1); break;
@@ -661,7 +664,7 @@ void Execute(int iq_size, int width, int time)
                         }
 
                         WB[k] = EX[i];
-                        WB[k]->set_begin_WB(time);
+                        WB[k]->set_begin_WB(time+1);
                         if (DEBUG) WB[k]->print();
                         EX[i] = NULL;
                     }
@@ -705,7 +708,7 @@ void Writeback(int rob_size, int width, int time)
                             rmt[WB[i]->get_Dest_Reg()]->set_valid(0);
 
                     RT[k] = WB[i];
-                    RT[k]->set_begin_RT(time);
+                    RT[k]->set_begin_RT(time+1);
                     if (DEBUG) RT[k]->print();
                     WB[i] = NULL;
                 }
@@ -836,22 +839,17 @@ int main(int argc, char *argv[])
         int op_type,DR,SR1,SR2;
 
         //At the end when traces are less than width...supply a new param left_over in place of width...do not change width
-        if(!feof(pFile))
-        {
-            Retire(rob_size,width,j);
-            Writeback(rob_size,width,j);
-            Execute(iq_size,width,j);
-            Issue(iq_size,width,j);
-            Dispatch(iq_size,width,j);
-            Regread(width,j);
-            if(DEBUG)    cout<<"Head: "<<head<<endl;
-            if(DEBUG)    cout<<"Tail: "<<tail<<endl;
-            Rename(rob_size,width,j);
-            Decode(width,j);
-            Fetch(width,j);
-        }
-
-        if(check_vacant_pointers(FE,width) == width && !feof(pFile))
+        Retire(rob_size,width,j);
+        Writeback(rob_size,width,j);
+        Execute(iq_size,width,j);
+        Issue(iq_size,width,j);
+        Dispatch(iq_size,width,j);
+        Regread(width,j);
+        if(DEBUG)    cout<<"Head: "<<head<<endl;
+        if(DEBUG)    cout<<"Tail: "<<tail<<endl;
+        Rename(rob_size,width,j);
+        Decode(width,j);
+        if(check_vacant_pointers(FE,width) == width && check_vacant_pointers(DE,width) == width && !feof(pFile))
         {
             for(int k=0;k<width;k++)
             {
@@ -859,34 +857,27 @@ int main(int argc, char *argv[])
                 if (DEBUG) cout<<"Read Instruction "<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
                 FE[k] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
                 i++;
-//                FE[k]->incr_FE();
             }
-//            int vacant = check_vacant_pointers(DE,width);
-//            if (DEBUG) cout<<vacant<<" DE pointers vacant\n";
-//            if(vacant == width)
-//            {
-//                for(int k=0; k<width;k++)
-//                {
-//                    DE[k] = FE[k];
-//                    DE[k]->set_begin_DE(j+1);
-//                    FE[k] = NULL;
-//                }
-//                if (DEBUG) cout<<"Fetched Following Instructions"<<endl;
-//                if(DEBUG)
-//                    for(int k=0;k<width;k++)
-//                        DE[k]->print();
-//            }
         }
+        Fetch(width,j);
+
         j++;
         
-        if(feof(pFile))
+        if(check_vacant_pointers(FE,width) == width && check_vacant_pointers(DE,width) == width && check_vacant_pointers(RT,rob_size) == rob_size)
             break;
     }
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    cout<<"# === Simulator Command =========\n";
+    cout<<"# ./sim "<<argv[1]<<" "<<argv[2]<<" "<<argv[3]<<" "<<argv[4]<<endl;
+    cout<<"# === Processor Configuration ===\n";
+    cout<<"# ROB_SIZE = "<<argv[1]<<endl;
+    cout<<"# IQ_SIZE  = "<<argv[2]<<endl;
+    cout<<"# WIDTH    = "<<argv[3]<<endl;
+    cout<<"# === Simulation Results ========\n";
+    cout<<"# Dynamic Instruction Count    = "<<i<<endl;
+    cout<<"# Cycles                       = "<<j<<endl;
+    cout<<"# Instructions Per Cycle (IPC) = "<<(float)(i*1.00/j*1.00)<<endl;
 
-    //Trace Completed...Finish the existing instructions
-    while(1)
-    {
-        break;
-    }
     return 0;
 }
