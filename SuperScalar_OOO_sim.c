@@ -246,6 +246,11 @@ void Fetch(int width, int time)
                 for(int i=0;i<width;i++)
                     DE[i]->print();
         }
+        else
+        {
+            for(int i=0; i<width;i++)
+                FE[i] = NULL;
+        }
     }
 }
 
@@ -280,12 +285,13 @@ void Rename(int rob_size, int width, int time)
     {
         for(int i=0;i<width;i++)
             RN[i]->incr_RN();
-        
+         
         //checking free entries in ROB
         int rob_tail = rob[tail]->get_ROB_entry();
+        cout<<"Rename Tail: "<<tail<<endl;
         for(int i=0;i<width;i++)
         {
-            if(rob[rob_tail]->get_Ready() == 1)
+            if(rob[rob_tail]->get_Ready() != -1)
             {
                 cout<<"No free entries in ROB\n";
                 return;
@@ -295,7 +301,7 @@ void Rename(int rob_size, int width, int time)
             if(rob_tail == rob_size)
                 rob_tail = 0;
         }
-        
+         
         int vacant = check_vacant_pointers(RR,width);
         if (DEBUG) cout<<vacant<<" RR pointers vacant\n";
 
@@ -729,6 +735,7 @@ void Retire(int rob_size, int width, int time)
                         RT[j] = NULL;
                         
                         int rob_head = rob[head]->get_ROB_entry();
+                        rob[head] = new ROB(head);
                         rob_head++;
                         if(rob_head == rob_size)
                             rob_head = 0;
@@ -828,12 +835,13 @@ int main(int argc, char *argv[])
         long PC;
         int op_type,DR,SR1,SR2;
 
-        if(check_vacant_pointers(FE,width) != -1 && !feof(pFile))
+        if(check_vacant_pointers(FE,width) > -1 && !feof(pFile))
         {
             fscanf(pFile," %lx %i %i %i %i\n", &PC, &op_type, &DR, &SR1, &SR2);
-            if (DEBUG) cout<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
+            if (DEBUG) cout<<"Read Instruction "<<i<<"\t"<<PC<<" "<<op_type<<" "<<DR<<" "<<SR1<<" "<<SR2<<endl;
             FE[i%width] = new Instruction(i,PC,op_type,DR,SR1,SR2,j);
         }
+        
         i++;
         //At the end when traces are less than width...supply a new param left_over in place of width...do not change width
         if(i%width == 0 || feof(pFile))
@@ -845,6 +853,8 @@ int main(int argc, char *argv[])
             Issue(iq_size,width,j);
             Dispatch(iq_size,width,j);
             Regread(width,j);
+            if(DEBUG)    cout<<"Head: "<<head<<endl;
+            if(DEBUG)    cout<<"Tail: "<<tail<<endl;
             Rename(rob_size,width,j);
             Decode(width,j);
             Fetch(width,j);
